@@ -1,0 +1,76 @@
+episodes can be stored as either the <base>.lvl OR <base>##.inf
+brickwarrior searches for the INF first, then tries for the LVL file
+
+format:
+**************************************
+--LV2-- (version for brickwarrior 16 - supports moving bricks)
+what			size in bytes
+id 'LV2<eof>'		4 (0x1a32564c)
+# of levels		4
+offset of each level	4*levels
+(from start of the file)
+
+-- individual levels--
+
+ASCIIZ level name	100
+
+# of balls		2
+{
+ballx			2
+bally			2
+ballxv			2
+ballyv			2
+ballactive		1
+} * balls (size each 7 bytes)
+
+# of bricks		2
+{
+x			2
+y			2
+width			2
+height			2
+strength		1
+red			1
+green			1
+blue			1
+moves			1  *** new
+	{ here is the move data *** new
+	direction	1	// 1=up 2=right 3=down 4=left
+	distance	2	// distance in pixels
+	time		2	// time in 1000th of seconds
+	} * moves (size each 5 bytes)
+} * bricks (size each 13 bytes)
+
+**********************************
+--LVL-- (version 1)
+what			size in bytes
+id 'LVL<eof>'		4 (0x1a4c564c)
+# of levels		4
+offset of each level	4*levels
+(from start of the file)
+
+-- individual levels--
+
+ASCIIZ level name	100
+
+# of balls		2
+{
+ballx			2
+bally			2
+ballxv			2
+ballyv			2
+ballactive		1
+} * balls (size each 7 bytes)
+
+# of bricks		2
+{
+x			2
+y			2
+width			2
+height			2
+strength		1
+red			1
+green			1
+blue			1
+} * bricks (size each 12 bytes)
+

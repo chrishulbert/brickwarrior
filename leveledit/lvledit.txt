@@ -1,0 +1,83 @@
+How 2 use Brickwarrior leveledit!!!
+Chris Hulbert -> 25/9/98
+
+CONTENTS:
+1/ Making your own episode
+2/ Making your own background for your episode
+3/ Making new levels
+4/ Editing levels
+
+-------------------------------------
+1/ Making your own episode
+
+go to the levels directory and double-click on the episodes.inf file (which opens in notepad)
+add your own line to the end looking something like this:
+{My episode,10,mine,back.bmp}
+> The 'My episode' is what shows in brickwarrior when you go to start a new game and it asks which episode to play (it doesnt ask for an episode if there is only the one specified in the episodes.inf)
+> The 5 means that there are 10 levels in the episode you're making. after you finish level 5 it will go into the highscores
+> The 'mine' is the start name of your level files. please explain? okay, since there are 5 levels, the level filenames will be:
+mine1.inf
+mine2.inf
+mine3.inf
+mine4.inf
+mine5.inf
+These are the files you edit with LVLEDIT to make levels.
+> the 'back.bmp' is the bmp file that will be used as the background for this episode
+
+-------------------------------------
+2/ Making your own background for your episode
+
+each episode can have a different background.
+make a file to use as your background. it has to be 640x480 size. open it in paint shop pro, and decrease the colour depth to 256 colours, and select the standard palette option. save the image as a BMP file in your BrickWarrior directory, ie 'myback.bmp' and change the line in the episodes.inf for your episode to have myback.bmp as its background.
+
+-------------------------------------
+3/ Making new levels
+
+you must make your mine1.inf and other level files to create your episode. to make a new level, double click lvledit.exe in your levels\ directory and when it asks for a level name, type in your file name 'mine1' and press enter. since the level 'mine1.inf' does not exist, level edit will create a new level.
+
+HUGE HINT: once you have made your level, instead of typing the name in every time you want to edit it, just open your levels folder in windows explorer, and drag your level file (whatever.inf) over lvledit.exe. Auto Open!
+
+-------------------------------------
+4/ Editing levels and using level edit
+
+Creating & moving bricks:
+once you're in the level editor, right drag the mouse to create a grey brick. left drag the brick around to move it where you want. create some bricks, and
+hold down ctrl while clicking on them. also you can use the spacebar instead of clicking on bricks to select them. to drag many bricks at a time, select them all and while holding ctrl, left drag the mouse around. pressing delete will delete any currently selected bricks.
+
+Note: the level editor has these red boundary lines forming an upside-down U on the screen. these show the boundary for the bricks/balls/stuff. your ball and bricks should not go outside the boundary. they can get close enough to be touching it, being right next to it, but should not go over the boundaries. make some bricks that go over the boundaries and press 'c' (clip) in level edit to get an idea of how the boundary works.
+
+Changing brick details:
+select one or more bricks, and press enter. a menu will come up, with options to change:
+X> X pixel coordinate of the left of the brick
+Y> Y pixel coordinate of the top of the brick
+W> width of the brick in pixels
+H> height of the brick in pixels
+S> strength of the brick. set this to 0 for an invincible brick with a edge, 1 for a normal 1-hit destroy brick with no edge, and bricks with strength above 1 have an edge, and specify how many times you need to hit the brick to kill it.
+R> the red colour value of the brick 0=black 255=bright red
+G> the green colour value of the brick 0=black 255=bright green
+B> the blue colour value of the brick 0=black 255=bright blue
+combine the RGB values to get different hues and colours
+
+press z to make the brick into a gold brick, and A to make it into a grey brick.
+
+Cool things to do:
+> select a brick or a vertical column of them, and press + on the number pad (right of the keyboard). this will duplicate the row to its right. hold down shift while pressing + to make it duplicate to the left
+> same thing as above but using - key. - duplicates below, and with shift it duplicates up
+> press '*' to split the brick into 4
+> press '/' to split the brick in 2 vertically down the middle. hold down shift and press / to split horizontally
+> press 'a' to select all the bricks
+> press 'n' to select nothing
+> press 'q' or escape to quit and save
+> press 'g' to bring up a grid (helps to see black bricks) and shows the box up the top where the level's name is displayed
+> press 'l' to change the title of your level (the name that appears in the rectangle in the top of your level)
+> press 'c' to clip all the bricks to fit into the level boundaries
+> use the arrow keys to move the selected bricks around, one pixel at a time
+> select brick(s), then choose a colour on the colour sliders at the top, then do shift+down arrow to set the brick to that colour
+> you can do the reverse too! select a brick and do shift+up arrow to change the colour sliders to match that brick. very useful for making several bricks of the same colour
+> press '[' to select a darker colour in the sliders
+> press ']' to select a brighter colour in the sliders
+> press 't' to select all the tiny bricks (width*height less than 25) so you can delete them or whatever
+
+Working with balls:
+you need 1 ball in your level. move the mouse where you want the ball to start and press insert to put one down. you can drag it around with the left mouse button. press enter on it to change its details, such as X/Y coordinates (this time for the center of the ball) and bearing (0=up 90=right 180=down 270=left) and starting velocity in pixels per second for that level.
+also there is a setting for Active, which if 0 means the ball starts off going through bricks until it hits the paddle, and if 1 means the ball starts off colliding with bricks.
