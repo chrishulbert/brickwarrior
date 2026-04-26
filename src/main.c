@@ -57,7 +57,7 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         .cleanup_cb = cleanup,
         .width = 640,
         .height = 480,
-        .window_title = "Brickwarrior",
+        .window_title = "BrickWarrior",
         .swap_interval = 1, // Enable VSync.
         .logger.func = slog_func,
         .icon.sokol_default = true,

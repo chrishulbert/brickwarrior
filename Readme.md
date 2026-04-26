@@ -1,4 +1,4 @@
-# Brickwarrior
+# BrickWarrior
 
 Brickout clone I wrote in the 90s
 
