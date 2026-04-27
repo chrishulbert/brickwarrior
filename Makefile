@@ -20,7 +20,7 @@ macos-app: macos
 	# Ad-hoc code signing, no cert needed:
 	codesign --force --deep --sign - BrickWarrior.app
 
-shader: sokol-tools-bin/README.md
+shaders: sokol-tools-bin/README.md
 	./sokol-tools-bin/bin/osx_arm64/sokol-shdc \
 		--input src/shaders/basic.glsl \
 		--output src/shaders/basic.h \

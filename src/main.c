@@ -16,9 +16,20 @@
 #include "sokol_log.h"
 #include "sokol_glue.h"
 
+#include "shaders/basic.h"
+
+#define SCREENWIDTH 640
+#define SCREENHEIGHT 480
+
 // State for our application:
 static struct {
     sg_pass_action pass_action;
+    uint32_t *framebuffer;
+    sg_pipeline framebuffer_pipeline;
+    sg_buffer framebuffer_verts;
+    sg_image framebuffer_image;
+    sg_view framebuffer_view;
+    sg_sampler framebuffer_sampler;
 } state;
 
 // Called once at the start:
@@ -28,6 +39,19 @@ void init(void) {
         .logger.func = slog_func,
     });
 
+    // Make the framebuffer:
+    state.framebuffer = malloc(SCREENWIDTH * SCREENHEIGHT * 4);
+    state.framebuffer_pipeline = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = sg_make_shader(basic_shader_desc(sg_query_backend())),
+        .layout = {
+            .attrs[0].format = SG_VERTEXFORMAT_FLOAT2
+        },
+        .cull_mode = SG_CULLMODE_NONE,
+        .depth = {
+            .write_enabled = false,
+            .compare = SG_COMPAREFUNC_NEVER,//SG_COMPAREFUNC_ALWAYS,
+        },
+    });
     // Define the background color:
     state.pass_action = (sg_pass_action) {
         .colors[0] = {
@@ -46,6 +70,8 @@ void frame(void) {
 
 // Called when the app shuts down:
 void cleanup(void) {
+    free(state.framebuffer);
+    state.framebuffer = NULL;
     sg_shutdown();
 }
 

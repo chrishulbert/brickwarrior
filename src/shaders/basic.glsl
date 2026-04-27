@@ -22,4 +22,4 @@ void main() {
 @end
 
 // --- Shader Program ---
-@program simple vs fs
+@program basic vs fs

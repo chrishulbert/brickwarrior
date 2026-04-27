@@ -9,13 +9,13 @@
 
     Overview:
     =========
-    Shader program: 'simple':
-        Get shader desc: simple_shader_desc(sg_query_backend());
+    Shader program: 'basic':
+        Get shader desc: basic_shader_desc(sg_query_backend());
         Vertex Shader: vs
         Fragment Shader: fs
         Attributes:
-            ATTR_simple_position => 0
-            ATTR_simple_color0 => 1
+            ATTR_basic_position => 0
+            ATTR_basic_color0 => 1
     Bindings:
 */
 #if !defined(SOKOL_GFX_INCLUDED)
@@ -28,8 +28,8 @@
 #define SOKOL_SHDC_ALIGN(a) __attribute__((aligned(a)))
 #endif
 #endif
-#define ATTR_simple_position (0)
-#define ATTR_simple_color0 (1)
+#define ATTR_basic_position (0)
+#define ATTR_basic_color0 (1)
 /*
     #version 430
 
@@ -437,7 +437,7 @@ static const uint8_t fs_source_wgsl[348] = {
     0x72,0x6e,0x20,0x6d,0x61,0x69,0x6e,0x5f,0x6f,0x75,0x74,0x28,0x66,0x72,0x61,0x67,
     0x5f,0x63,0x6f,0x6c,0x6f,0x72,0x29,0x3b,0x0a,0x7d,0x0a,0x00,
 };
-static inline const sg_shader_desc* simple_shader_desc(sg_backend backend) {
+static inline const sg_shader_desc* basic_shader_desc(sg_backend backend) {
     if (backend == SG_BACKEND_GLCORE) {
         static sg_shader_desc desc;
         static bool valid;
@@ -451,7 +451,7 @@ static inline const sg_shader_desc* simple_shader_desc(sg_backend backend) {
             desc.attrs[0].glsl_name = "position";
             desc.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
             desc.attrs[1].glsl_name = "color0";
-            desc.label = "simple_shader";
+            desc.label = "basic_shader";
         }
         return &desc;
     }
@@ -472,7 +472,7 @@ static inline const sg_shader_desc* simple_shader_desc(sg_backend backend) {
             desc.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
             desc.attrs[1].hlsl_sem_name = "TEXCOORD";
             desc.attrs[1].hlsl_sem_index = 1;
-            desc.label = "simple_shader";
+            desc.label = "basic_shader";
         }
         return &desc;
     }
@@ -487,7 +487,7 @@ static inline const sg_shader_desc* simple_shader_desc(sg_backend backend) {
             desc.fragment_func.entry = "main0";
             desc.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
             desc.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-            desc.label = "simple_shader";
+            desc.label = "basic_shader";
         }
         return &desc;
     }
@@ -502,7 +502,7 @@ static inline const sg_shader_desc* simple_shader_desc(sg_backend backend) {
             desc.fragment_func.entry = "main";
             desc.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
             desc.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-            desc.label = "simple_shader";
+            desc.label = "basic_shader";
         }
         return &desc;
     }
