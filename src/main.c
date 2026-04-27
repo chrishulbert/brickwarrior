@@ -44,19 +44,44 @@ void init(void) {
     state.framebuffer_pipeline = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = sg_make_shader(basic_shader_desc(sg_query_backend())),
         .layout = {
-            .attrs[0].format = SG_VERTEXFORMAT_FLOAT2
+            .attrs[0].format = SG_VERTEXFORMAT_FLOAT2, // Position.
+            .attrs[1].format = SG_VERTEXFORMAT_FLOAT4, // Colour.
         },
         .cull_mode = SG_CULLMODE_NONE,
         .depth = {
             .write_enabled = false,
-            .compare = SG_COMPAREFUNC_NEVER,//SG_COMPAREFUNC_ALWAYS,
+            .compare = SG_COMPAREFUNC_ALWAYS, // Never?
         },
     });
+    const float verts[] = {
+        0.0f, 0.0f,
+        2.0f, 0.0f,
+        0.0f, 2.0f
+    };
+    state.framebuffer_verts = sg_make_buffer(&(sg_buffer_desc){
+        .data = SG_RANGE(verts),
+    });
+    state.framebuffer_sampler = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_NEAREST,
+        .mag_filter = SG_FILTER_NEAREST,
+        .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+        .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+    });
+    state.framebuffer_image = sg_make_image(&(sg_image_desc){
+        .width = SCREENWIDTH,
+        .height = SCREENHEIGHT,
+        .pixel_format = SG_PIXELFORMAT_RGBA8,
+        .usage.stream_update = true,
+    });
+    state.framebuffer_view = sg_make_view(&(sg_view_desc){
+        .texture.image = state.framebuffer_image,
+    });
+
     // Define the background color:
     state.pass_action = (sg_pass_action) {
         .colors[0] = {
             .load_action = SG_LOADACTION_CLEAR,
-            .clear_value = { 0.5f, 0.5f, 0.5f, 1.0f }
+            .clear_value = { 0.3f, 0.4f, 0.5f, 1.0f }
         }
     };
 }
@@ -64,6 +89,28 @@ void init(void) {
 // Called every frame:s
 void frame(void) {
     sg_begin_pass(&(sg_pass){ .action = state.pass_action, .swapchain = sglue_swapchain() });
+
+    for (int x=0; x<SCREENWIDTH; x++) {
+        for (int y=0; y<SCREENHEIGHT; y++) {
+            state.framebuffer[y*SCREENWIDTH + x] = 0xff8888ff;
+        }
+    }
+
+    sg_update_image(state.framebuffer_image, &(sg_image_data){
+        .mip_levels[0] = {
+            .ptr = state.framebuffer,
+            .size = SCREENWIDTH * SCREENHEIGHT * 4,
+        }
+    });
+
+    sg_apply_pipeline(state.framebuffer_pipeline);
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers[0] = state.framebuffer_verts,
+        .views[0] = state.framebuffer_view,
+        .samplers[0] = state.framebuffer_sampler,
+    });
+    sg_draw(0, 3, 1);
+
     sg_end_pass();
     sg_commit();
 }
