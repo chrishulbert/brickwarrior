@@ -84,12 +84,12 @@ void init(void) {
     state.pass_action = (sg_pass_action) {
         .colors[0] = {
             .load_action = SG_LOADACTION_CLEAR,
-            .clear_value = { 0.5f, 0.5f, 0.5f, 1.0f }
+            .clear_value = { 0, 0, 0, 1 }
         }
     };
 }
 
-// Called every frame:s
+// Called every frame:
 void frame(void) {
     // Draw to the framebuffer:
     uint32_t palette[3] = {0xffff0000, 0xff00ff00, 0xff0000ff};
@@ -117,6 +117,23 @@ void frame(void) {
         .action = state.pass_action,
         .swapchain = sglue_swapchain(),
     });
+
+    // Fix the aspect ratio:
+    float target_aspect = (float)SCREENWIDTH / (float)SCREENHEIGHT;
+    int window_width = sapp_width();
+    int window_height = sapp_height();
+    float window_aspect = (float)window_width / (float)window_height;
+    int vp_x = 0, vp_y = 0, vp_w = window_width, vp_h = window_height;
+    if (window_aspect > target_aspect) {
+        // Window is too wide: add bars on the sides.
+        vp_w = (int)(window_height * target_aspect);
+        vp_x = (window_width - vp_w) / 2;
+    } else {
+        // Window is too tall: add bars on top/bottom.
+        vp_h = (int)(window_width / target_aspect);
+        vp_y = (window_height - vp_h) / 2;
+    }
+    sg_apply_viewport(vp_x, vp_y, vp_w, vp_h, true);
 
     // Draw the framebuffer:
     sg_apply_pipeline(state.framebuffer_pipeline);
