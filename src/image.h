@@ -8,5 +8,5 @@ typedef struct {
     uint32_t *data; // RGBA order. (R at first memory index)
 } Image;
 
-Image* image_load(char *filename);
+Image* image_load(const char *filename);
 void image_free(Image* image);

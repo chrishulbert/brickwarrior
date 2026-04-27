@@ -1,4 +1,5 @@
-// Brickwarrior main Sokol entry file.
+// Main Sokol entry file.
+// The intention re separation of responsibilities is for this to be game-agnostic, with no game-specific code here.
 
 // Auto-select thee platform graphics backend:
 #if defined(_WIN32)
@@ -15,11 +16,9 @@
 #include "sokol_gfx.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
-
 #include "shaders/basic.h"
 
-#define SCREENWIDTH (640)
-#define SCREENHEIGHT (480)
+#include "game.h"
 
 // State for our application:
 static struct {
@@ -57,9 +56,9 @@ void init(void) {
     });
     const float verts[] = {
         // X Y  U   V
-        -1, -1, 0,  1, // Bottom-left
-         3, -1, 2,  1, // Bottom-right (covers the screen)
-        -1,  3, 0, -1, // Top-left (covers the screen)
+        -1, -1, 0,  1, // Bottom-left.
+         3, -1, 2,  1, // Bottom-right. (covers the screen)
+        -1,  3, 0, -1, // Top-left. (covers the screen)
     };
     state.framebuffer_verts = sg_make_buffer(&(sg_buffer_desc){
         .data = SG_RANGE(verts),
@@ -91,18 +90,8 @@ void init(void) {
 
 // Called every frame:
 void frame(void) {
-    // Draw to the framebuffer:
-    uint32_t palette[3] = {0xffff0000, 0xff00ff00, 0xff0000ff};
-    for (int x=0; x<SCREENWIDTH; x++) {
-        for (int y=0; y<SCREENHEIGHT; y++) {
-            // 0xAABBGGRR
-            if (x & 0x1 && y & 0x1) {
-                state.framebuffer[y*SCREENWIDTH + x] = palette[rand() % 3];
-            } else {
-                state.framebuffer[y*SCREENWIDTH + x] = 0xffffffff;
-            }
-        }
-    }
+    // Give the game a chance to draw:
+    game_draw(state.framebuffer);
 
     // Copy the framebuffer to the GPU:
     sg_update_image(state.framebuffer_image, &(sg_image_data){
@@ -162,9 +151,9 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         .init_cb = init,
         .frame_cb = frame,
         .cleanup_cb = cleanup,
-        .width = 640,
-        .height = 480,
-        .window_title = "BrickWarrior",
+        .width = SCREENWIDTH,
+        .height = SCREENHEIGHT,
+        .window_title = TITLE,
         .swap_interval = 1, // Enable VSync.
         .logger.func = slog_func,
     };

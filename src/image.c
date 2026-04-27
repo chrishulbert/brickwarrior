@@ -4,7 +4,7 @@
 #define STBI_ONLY_PNG
 #include "stb_image.h"
 
-Image* image_load(char *filename) {
+Image* image_load(const char *filename) {
     // Using '4' as the last argument forces the output to RGBA.
     int width, height, channels;
     void *data = stbi_load(filename, &width, &height, &channels, 4);
