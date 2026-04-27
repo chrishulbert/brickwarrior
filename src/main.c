@@ -60,6 +60,5 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         .window_title = "BrickWarrior",
         .swap_interval = 1, // Enable VSync.
         .logger.func = slog_func,
-        .icon.sokol_default = true,
     };
 }

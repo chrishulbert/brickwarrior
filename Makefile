@@ -17,6 +17,8 @@ macos-app: macos
 	cp brickwarrior BrickWarrior.app/Contents/MacOS
 	cp assets/macos/Info.plist BrickWarrior.app/Contents
 	cp assets/macos/AppIcon.icns BrickWarrior.app/Contents/Resources
+	# Ad-hoc code signing, no cert needed:
+	codesign --force --deep --sign - BrickWarrior.app
 
 sokol/sokol_app.h:
 	git clone git@github.com:floooh/sokol.git
