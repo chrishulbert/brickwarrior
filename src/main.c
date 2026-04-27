@@ -18,8 +18,8 @@
 
 #include "shaders/basic.h"
 
-#define SCREENWIDTH 640
-#define SCREENHEIGHT 480
+#define SCREENWIDTH (640)
+#define SCREENHEIGHT (480)
 
 // State for our application:
 static struct {
@@ -44,8 +44,10 @@ void init(void) {
     state.framebuffer_pipeline = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = sg_make_shader(basic_shader_desc(sg_query_backend())),
         .layout = {
-            .attrs[0].format = SG_VERTEXFORMAT_FLOAT2, // Position.
-            .attrs[1].format = SG_VERTEXFORMAT_FLOAT4, // Colour.
+            .attrs = {
+                [ATTR_basic_position].format = SG_VERTEXFORMAT_FLOAT2,
+                [ATTR_basic_texcoord].format = SG_VERTEXFORMAT_FLOAT2,
+            },
         },
         .cull_mode = SG_CULLMODE_NONE,
         .depth = {
@@ -54,9 +56,10 @@ void init(void) {
         },
     });
     const float verts[] = {
-        0.0f, 0.0f,
-        2.0f, 0.0f,
-        0.0f, 2.0f
+        // X     Y      U      V
+        -1.0f, -1.0f,  0.0f,  1.0f, // Bottom-left
+        3.0f,  -1.0f,  2.0f,  1.0f, // Bottom-right (covers the screen)
+        -1.0f,  3.0f,  0.0f, -1.0f  // Top-left (covers the screen)
     };
     state.framebuffer_verts = sg_make_buffer(&(sg_buffer_desc){
         .data = SG_RANGE(verts),
@@ -81,21 +84,23 @@ void init(void) {
     state.pass_action = (sg_pass_action) {
         .colors[0] = {
             .load_action = SG_LOADACTION_CLEAR,
-            .clear_value = { 0.3f, 0.4f, 0.5f, 1.0f }
+            .clear_value = { 0.5f, 0.5f, 0.5f, 1.0f }
         }
     };
 }
 
 // Called every frame:s
 void frame(void) {
-    sg_begin_pass(&(sg_pass){ .action = state.pass_action, .swapchain = sglue_swapchain() });
-
+    // Draw to the framebuffer:
+    uint32_t palette[3] = {0xffff0000, 0xff00ff00, 0xff0000ff};
     for (int x=0; x<SCREENWIDTH; x++) {
         for (int y=0; y<SCREENHEIGHT; y++) {
-            state.framebuffer[y*SCREENWIDTH + x] = 0xff8888ff;
+            // 0xAABBGGRR
+            state.framebuffer[y*SCREENWIDTH + x] = palette[rand() % 3];
         }
     }
 
+    // Copy the framebuffer to the GPU:
     sg_update_image(state.framebuffer_image, &(sg_image_data){
         .mip_levels[0] = {
             .ptr = state.framebuffer,
@@ -103,6 +108,13 @@ void frame(void) {
         }
     });
 
+    // Start the pass:
+    sg_begin_pass(&(sg_pass){
+        .action = state.pass_action,
+        .swapchain = sglue_swapchain(),
+    });
+
+    // Draw the framebuffer:
     sg_apply_pipeline(state.framebuffer_pipeline);
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = state.framebuffer_verts,
@@ -111,6 +123,7 @@ void frame(void) {
     });
     sg_draw(0, 3, 1);
 
+    // Complete the pass:
     sg_end_pass();
     sg_commit();
 }
