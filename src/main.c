@@ -52,14 +52,14 @@ void init(void) {
         .cull_mode = SG_CULLMODE_NONE,
         .depth = {
             .write_enabled = false,
-            .compare = SG_COMPAREFUNC_ALWAYS, // Never?
+            .compare = SG_COMPAREFUNC_ALWAYS,
         },
     });
     const float verts[] = {
-        // X     Y      U      V
-        -1.0f, -1.0f,  0.0f,  1.0f, // Bottom-left
-        3.0f,  -1.0f,  2.0f,  1.0f, // Bottom-right (covers the screen)
-        -1.0f,  3.0f,  0.0f, -1.0f  // Top-left (covers the screen)
+        // X Y  U   V
+        -1, -1, 0,  1, // Bottom-left
+         3, -1, 2,  1, // Bottom-right (covers the screen)
+        -1,  3, 0, -1, // Top-left (covers the screen)
     };
     state.framebuffer_verts = sg_make_buffer(&(sg_buffer_desc){
         .data = SG_RANGE(verts),
@@ -96,7 +96,11 @@ void frame(void) {
     for (int x=0; x<SCREENWIDTH; x++) {
         for (int y=0; y<SCREENHEIGHT; y++) {
             // 0xAABBGGRR
-            state.framebuffer[y*SCREENWIDTH + x] = palette[rand() % 3];
+            if (x & 0x1 && y & 0x1) {
+                state.framebuffer[y*SCREENWIDTH + x] = palette[rand() % 3];
+            } else {
+                state.framebuffer[y*SCREENWIDTH + x] = 0xffffffff;
+            }
         }
     }
 
