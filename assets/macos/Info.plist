@@ -14,5 +14,9 @@
     <string>1.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>LSSupportsGameMode</key>
+    <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.games</string>
 </dict>
 </plist>
