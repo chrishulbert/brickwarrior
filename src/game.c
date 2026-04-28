@@ -159,7 +159,7 @@ static struct {
 	Brick brick[MAXBRICKS];
 	int bricks;
 
-	int players; // One or two players.
+	int players; // One or two players. TODO remove.
 	char levelname[100];
 	int bricksLeft;
 
@@ -801,11 +801,6 @@ void draw_rect(uint32_t *framebuffer, int left, int top, int width, int height, 
 	}
 }
 
-// TODO instead of the character bias, split the colour variants into different images.
-void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y) {
-	// TODO.
-}
-
 // Draws an area of an image to the buffer.
 void draw_subimage(uint32_t *framebuffer, Image* image, int dstLeft, int dstTop, int srcLeft, int srcTop, int width, int height) {
 	for (int y0=0; y0<height; y0++) {
@@ -822,6 +817,33 @@ void draw_subimage(uint32_t *framebuffer, Image* image, int dstLeft, int dstTop,
 					}
 				}
 			}
+		}
+	}
+}
+
+void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y) {
+	if (!image) { return; }
+	int charSize = image->width / 16;
+	int curX = x;
+	int curY = y;
+	int len = strlen(text);
+	for (int i=0; i<len; i++) {
+		char c = text[i];
+		if (c=="\n") {
+			curY += charSize;
+			curX = x;
+		} else {
+			if (32 <= c && c <= 127) { // Only printable chars.
+				int index = c - 32;
+				draw_subimage(
+					framebuffer, image,
+					curX, curY,
+					(index % 16) * charSize,
+					index / 16 * charSize,
+					charSize, charSize);
+				}
+			}
+			curX += charSize;
 		}
 	}
 }
