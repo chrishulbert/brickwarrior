@@ -1,3 +1,5 @@
+// TODO refactor non-game-specific stuff eg drawing into their own helpers.
+
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -783,10 +785,26 @@ void black_fade(uint32_t *framebuffer) {
 	}
 }
 
-void draw_paddle(int x, int y, int width) {
-	#define	PADEND	5
-	// TODO
-	// sprites.Display((x-wid/2),y-5,kill*200,12,PADEND,10); // left end
-	// sprites.Display((x-wid/2)+PADEND,y-5,kill*200+100+PADEND-wid/2,12,wid-2*PADEND,10);	// middle filler
-	// sprites.Display((x+wid/2)-PADEND,y-5,kill*200+200-PADEND,12,PADEND,10);	// right end
+void draw_paddle(uint32_t *framebuffer, int x, int y, int width) {
+	#define	PADEND 5
+	int killedSrcXOffset = state.isKilled ? 200 : 0;
+	int dstTop = y - 5;
+	draw_subimage(
+		framebuffer,
+		state.sprites,
+		(x-width/2),
+		dstTop,
+		killedSrcXOffset,
+		12,
+		width - PADEND,
+		10); // Left and middle.
+	draw_subimage(
+		framebuffer,
+		state.sprites,
+		(x+width/2) - PADEND,
+		dstTop,
+		killedSrcXOffset + 200 - PADEND,
+		12,
+		PADEND,
+		10); // Right end.
 }
