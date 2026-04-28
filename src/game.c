@@ -77,6 +77,24 @@ typedef struct {
 	int score, level;
 } Highscore;
 
+typedef enum {
+	SCREEN_TITLE=0,
+	SCREEN_HIGHSCORE,
+	SCREEN_GAME,
+	SCREEN_TYPENAME,
+	SCREEN_ABOUT,
+} Screen;
+
+typedef enum {
+	MENU_MAIN=0,
+	MENU_PLAYERS, // How many players.
+	MENU_EPISODE, // Choose an episode.
+	MENU_MUSIC, // CD player - todo remove?
+	MENU_GAME, // Play/load/save.
+	MENU_LOAD, // Load game.
+	MENU_SAVE, // Save game.
+} Menu;
+
 static struct {
 	// // Sound:
 	// CDXSound *Sound;
@@ -152,7 +170,8 @@ static struct {
 	// Menu:
 	int	menuopts, curopt, curmenu;
 	bool isInMenu; // True = paused.
-	int menusel, whatin, mouseposx, mouseposy, lastmouse; // 0=game 1=highscores 2=titlescreen 3=aboutscreen
+	int menusel, mouseposx, mouseposy, lastmouse; // 0=game 1=highscores 2=titlescreen 3=aboutscreen
+	Screen whatScreen;
 
 	// Scoring:
 	int mult, score;
@@ -201,7 +220,7 @@ void game_draw(uint32_t *framebuffer) {
 
 void set_pause(bool on) {
 	if (on && !state.isInMenu) {
-		state.curmenu = 0;
+		state.curmenu = MENU_MAIN;
 		state.curopt = 0;
 		state.menuopts = 5;
 		state.isInMenu = true;
@@ -816,3 +835,81 @@ void draw_paddle(uint32_t *framebuffer, int x, int y, int width) {
 		PADEND,
 		10); // Right end.
 }
+
+void load_proper_back() {
+	image_free(state.background);
+	char path[100];
+	switch (state.whatScreen) {
+		case SCREEN_TITLE:
+			state.background = image_load("assets/img/title.png");
+			break;
+		case SCREEN_HIGHSCORE:
+		case SCREEN_TYPENAME:
+			state.background = image_load("assets/img/hiscore.png");
+			break;
+		case SCREEN_GAME:
+			sprintf(path, "assets/img/%s.png", state.episode[state.curEpisode].backname);
+			state.background = image_load(path);
+			break;
+		case SCREEN_ABOUT:
+			state.background = image_load("assets/img/about.png");
+			break;
+	}
+}
+
+void menu_press_enter() {
+	if (curmenu==MENU_MAIN)	{ // changed to ignore # of players
+		if (curopt==0) {curmenu=MENU_GAME; menuopts=3; curopt=0;} // game
+		if (curopt==1) {curmenu=MENU_MUSIC; curopt=0; menuopts=4;
+			MusicCd->Read(); if	(curcdtrack>MusicCd->GetNumberOfTracks()) curcdtrack=1;} // cd player
+		if (curopt==2) {inmenu=0; whatScreen=SCREEN_HIGHSCORE; LoadProperBack();} // high score screen
+		if (curopt==3) {inmenu=0; sndIntro.Stop(); sndIntro.Play(); whatScreen=SCREEN_ABOUT; LoadProperBack();}
+		if (curopt==4) quit=true;
+	} else if (curmenu==MENU_PLAYERS) { // how many players (not actually used).
+		if (curopt==0) {players=1; menuopts=episodes;} // choose episode
+		if (curopt==1) {players=2; menuopts=episodes;}
+		curmenu=MENU_EPISODE; curopt=0;
+		if (episodes<=1) { // only one episode to choose!
+			curepisode=0; curballs=3; curlevel=1; mult=score=0;
+			NoPowerups();
+			ball[0].type=0;	LoadCurLevel();
+			whatScreen=SCREEN_GAME;
+			LoadProperBack();
+			inmenu=0; // play!!!
+		}
+	} else if (curmenu==MENU_GAME) { // game
+		if (curopt==0) {curmenu=MENU_EPISODE; curopt=0; menuopts=episodes;} // play
+		if (curopt==1) {curmenu=MENU_LOAD; curopt=0; menuopts=SAVEGAMES;}; // load
+		if (curopt==2 && whatScreen==SCREEN_GAME)
+			{curmenu=MENU_SAVE;	curopt=0; menuopts=SAVEGAMES;};	// save
+	} else if (curmenu==MENU_EPISODE) { // episode chooser
+		curepisode=curopt; curballs=3; curlevel=1; mult=score=0;
+		NoPowerups();
+		ball[0].type=0;	LoadCurLevel();
+		whatScreen=SCREEN_GAME;
+		LoadProperBack();
+		inmenu=0; // play!
+	} else if (curmenu==MENU_LOAD) { // load game
+		if (DoesSaveExist(curopt+1)) {
+			LoadGame(curopt+1);
+			whatScreen=SCREEN_GAME;
+			LoadProperBack();
+			inmenu=0; // play it!
+			}
+	} else if (curmenu==MENU_SAVE) { // save game
+		if (whatScreen==SCREEN_GAME) {
+			SaveGame(curopt+1);
+			inmenu=0;
+			}
+	} else if (curmenu==MENU_MUSIC) {
+		if (curopt==0) {
+			if (MusicCd->GetNumberOfTracks())
+			MusicCd->Play(curcdtrack);
+			else
+			MusicCd->Read();
+			}
+		if (curopt==1) {curcdtrack++; if (curcdtrack>MusicCd->GetNumberOfTracks()) curcdtrack=1;}
+		if (curopt==2) {curcdtrack--; if (curcdtrack<1)	curcdtrack=MusicCd->GetNumberOfTracks();}
+		if (curopt==3) MusicCd->Stop();
+	}
+} // menu_press_enter

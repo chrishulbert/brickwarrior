@@ -64,23 +64,23 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 		}
 
 	// f1=new game f2=save game f3=load game f4=cd menu
-	if (!inmenu && keybuffer[i]==VK_F1)	{inmenu=2; curmenu=2; curopt=0;	menuopts=episodes;}	// select episode
-	if (!inmenu && keybuffer[i]==VK_F2 && whatin==IN_GAME)
-		{inmenu=2; curmenu=6; curopt=0;	menuopts=SAVEGAMES;}; // save
-	if (!inmenu && keybuffer[i]==VK_F3)	{inmenu=2; curmenu=5; curopt=0;	menuopts=SAVEGAMES;} // load
-	if (!inmenu && keybuffer[i]==VK_F4)	{inmenu=2; curmenu=3; curopt=0;	menuopts=4;
+	if (!inmenu && keybuffer[i]==VK_F1)	{inmenu=2; curmenu=MENU_EPISODE; curopt=0;	menuopts=episodes;}	// select episode
+	if (!inmenu && keybuffer[i]==VK_F2 && whatScreen==SCREEN_GAME)
+		{inmenu=2; curmenu=MENU_SAVE; curopt=0;	menuopts=SAVEGAMES;}; // save
+	if (!inmenu && keybuffer[i]==VK_F3)	{inmenu=2; curmenu=MENU_LOAD; curopt=0;	menuopts=SAVEGAMES;} // load
+	if (!inmenu && keybuffer[i]==VK_F4)	{inmenu=2; curmenu=MENU_MUSIC; curopt=0;	menuopts=4;
 			MusicCd->Read(); if	(curcdtrack>MusicCd->GetNumberOfTracks()) curcdtrack=1;} // cd player
 
-	if (!inmenu && keybuffer[i]==VK_ESCAPE)	{curmenu=0; curopt=0; menuopts=5; inmenu=1;}
+	if (!inmenu && keybuffer[i]==VK_ESCAPE)	{curmenu=MENU_MAIN; curopt=0; menuopts=5; inmenu=1;}
 	else if	(inmenu	&& keybuffer[i]==VK_ESCAPE)	{
 		curopt=0;
-		if (curmenu==0 || inmenu==2) inmenu=0;
-		if (curmenu==1)	{curmenu=0; menuopts=5;} // # of players
-		if (curmenu==4)	{curmenu=0; menuopts=5;} // game -> main
-		if (curmenu==3)	{curmenu=0; curopt=1; menuopts=5;} // cd player
-		if (curmenu==2)	{curmenu=4; menuopts=3;} // episodes -> game
-		if (curmenu==5)	{curmenu=4; curopt=1; menuopts=3;} // load -> game
-		if (curmenu==6)	{curmenu=4; curopt=2; menuopts=3;} // save -> game
+		if (curmenu==MENU_MAIN || inmenu==2) inmenu=0;
+		if (curmenu==MENU_PLAYERS) {curmenu=MENU_MAIN; menuopts=5;} // # of players
+		if (curmenu==MENU_GAME)	{curmenu=MENU_MAIN; menuopts=5;} // game -> main
+		if (curmenu==MENU_MUSIC) {curmenu=MENU_MAIN; curopt=1; menuopts=5;} // cd player
+		if (curmenu==MENU_EPISODE)	{curmenu=MENU_GAME; menuopts=3;} // episodes -> game
+		if (curmenu==MENU_LOAD)	{curmenu=MENU_GAME; curopt=1; menuopts=3;} // load -> game
+		if (curmenu==MENU_SAVE)	{curmenu=MENU_GAME; curopt=2; menuopts=3;} // save -> game
 		}
 	if (inmenu && keybuffer[i]==VK_RETURN)
 		MenuPressEnter();
@@ -89,7 +89,7 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 	if (inmenu && keybuffer[i]==VK_DOWN) {curopt++;	if (curopt>=menuopts) curopt=0;}
 	}
 
-	if (whatin==IN_GAME) { // in the game
+	if (whatScreen==SCREEN_GAME) { // in the game
 	if (!inmenu) { // only move if not in menu
 		// outside border 19,44,620,480 (things must be inside not on this line)
 		i=padx;	padx+=mousex*100; MYCLAMP(padx,2000+padwidth/2,62000-padwidth/2);
@@ -172,10 +172,10 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 		mult=0;
 		if (score>=highscore[HIGHSCORES-1].score) {
 			if (soundinit) sndNewHighscore.Play();
-			whatin=IN_TYPENAME;	// made it into the high scores!
+			whatScreen=SCREEN_TYPENAME;	// made it into the high scores!
 			curnametext[0]=0; curnameoff=0;	// start the name off
 			}
-		else whatin=IN_HIGHSCORE;
+		else whatScreen=SCREEN_HIGHSCORE;
 		LoadProperBack();
 		}
 		}
@@ -209,25 +209,21 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 			case PWR_PROTECTION:
 			if (!kill && soundinit)	sndProtection.Play();
 			DropCatch();
-			DegradeBalls();
 			protection=1;
 			break;
 			case PWR_CATCH:
 			if (!kill && soundinit)	sndCatch.Play();
-			DegradeBalls();
 			caught=false;
 			havecatch=true;
 			break;
 			case PWR_UPDOWN:
 			if (!kill && soundinit)	sndUpdown.Play();
 			DropCatch();
-			DegradeBalls();
 			updown=1;
 			break;
 			case PWR_FAST:
 			if (!kill && soundinit)	sndFast.Play();
 			DropCatch();
-			DegradeBalls();
 			for	(k=0;k<balls;k++) {	// how bodgy can you get?
 				speed=(long)sqrt(SQR(ball[k].xv/100)+SQR(ball[k].yv/100));
 				angle=long(atan2(ball[k].yv,ball[k].xv)*100);
@@ -240,7 +236,6 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 			case PWR_SLOW:
 			if (!kill && soundinit)	sndSlow.Play();
 			DropCatch();
-			DegradeBalls();
 			for	(k=0;k<balls;k++) {
 				speed=(long)sqrt(SQR(ball[k].xv/100)+SQR(ball[k].yv/100));
 				angle=long(atan2(ball[k].yv,ball[k].xv)*100);
@@ -253,7 +248,6 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 			case PWR_WIDE:
 			if (!kill && soundinit)	sndWide.Play();
 			DropCatch();
-			DegradeBalls();
 			padwidth+=2000;	// 10 pixels each side
 			if (padwidth>=12000) {
 				padwidth-=2000;	// undo the expansion...
@@ -274,7 +268,6 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 			case PWR_THIN:
 			if (!kill && soundinit)	sndThin.Play();
 			DropCatch();
-			DegradeBalls();
 			if (padwidth>6000)
 				padwidth-=2000;	// 5 pixels each side
 			break;
@@ -382,7 +375,7 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 		for	(j=0;j<bricks;j++)
 			if (MYINSIDE(ball[i].x,ball[i].y,brick[j].x-BALLWID*50,brick[j].y-BALLHT*50,
 			brick[j].x+brick[j].wid+BALLWID*50,brick[j].y+brick[j].ht+BALLHT*50)) {
-			k=MYWHICHSIDE(ball[i].x,ball[i].y,brick[j].x,brick[j].y,
+			k=WhichSide(ball[i].x,ball[i].y,brick[j].x,brick[j].y,
 				brick[j].x+brick[j].wid,brick[j].y+brick[j].ht);
 			if (hits==0) {
 				tx=brick[j].x;
@@ -461,7 +454,7 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 			} // if myinside
 			// j=0 to bricks
 		if (hits==2	&& ball[i].type!=3)	{ // check the bounce, it is weird (unless laser)
-			k=MYWHICHSIDE(ball[i].x,ball[i].y,tx,ty,bx,by);
+			k=WhichSide(ball[i].x,ball[i].y,tx,ty,bx,by);
 			if (k==k1 || k==k2)	{ // acceptable?
 				if (k==RIGHT) {ball[i].xv=ABS(oxv); ball[i].yv=oyv;} //ball[i].x=bx+BALLWID*50; ball[i].y=oy;}
 				if (k==LEFT) {ball[i].xv=-ABS(oxv); ball[i].yv=oyv;} //ball[i].x=tx-BALLWID*50; ball[i].y=oy;}
@@ -530,23 +523,23 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 		mult=0;
 		if (score>=highscore[HIGHSCORES-1].score) {
 			if (soundinit) sndNewHighscore.Play();
-			whatin=IN_TYPENAME;	// made it into the high scores!
+			whatScreen=SCREEN_TYPENAME;	// made it into the high scores!
 			curnametext[0]=0; curnameoff=0;	// start the name off
 			}
-		else whatin=IN_HIGHSCORE;
+		else whatScreen=SCREEN_HIGHSCORE;
 		LoadProperBack();
 		}
 		}
 	}
 
 	else
-	if (whatin==IN_TITLE) {
+	if (whatScreen==SCREEN_TITLE) {
 		}
 	else
-	if (whatin==IN_HIGHSCORE) {	// high scores
+	if (whatScreen==SCREEN_HIGHSCORE) {	// high scores
 		}
 	else
-	if (whatin==IN_TYPENAME) { // high scores
+	if (whatScreen==SCREEN_TYPENAME) { // high scores
 	if (!inmenu)
 		for	(i=0;i<256 && keybuffer[i];i++)	{
 		if (isprint(keybuffer[i]) && curnameoff<19)	{
@@ -563,11 +556,11 @@ void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,i
 		if (keybuffer[i]==VK_RETURN) {
 			AddHighScore(curnametext,episode[curepisode].name,score,curlevel);
 			SaveHighScores();
-			whatin=IN_HIGHSCORE;
+			whatScreen=SCREEN_HIGHSCORE;
 			LoadProperBack();
 			}
 		} // for i...
-	} // whatin==in_typename
+	} // whatScreen==SCREEN_typename
 
 	lastmouse=mousebutton;
 	}
@@ -582,10 +575,10 @@ void dxGame::DrawFrame()
 	ddbltfx.dwSize=sizeof(ddbltfx);
 
 	// display background
-	if (whatin!=IN_GAME) // IN_GAME draws its own background
+	if (whatScreen!=SCREEN_GAME) // SCREEN_GAME draws its own background
 	background.Display(0,0,0,0,640,480);
 
-	if (whatin==IN_GAME) { // in the game
+	if (whatScreen==SCREEN_GAME) { // in the game
 	// draw STUFF
 	DrawGameScreen();
 	lpDDSBack->BltFast(NULL,NULL,lpDDSGame,NULL,DDBLTFAST_NOCOLORKEY);
@@ -646,7 +639,7 @@ void dxGame::DrawFrame()
 	else
 		DrawPaddle(padx/100,pady/100,padwidth/100);
 	}
-	if (whatin==IN_HIGHSCORE) {
+	if (whatScreen==SCREEN_HIGHSCORE) {
 	//font16.Text("High Scores for BrickWarrior:",320-29*4,100);
 
 	for	(i=0;i<HIGHSCORES;i++) {
@@ -658,13 +651,13 @@ void dxGame::DrawFrame()
 		}
 	}
 
-	if (whatin==IN_TYPENAME) {
+	if (whatScreen==SCREEN_TYPENAME) {
 	font16.Text("Congrats! You're in the high scores!\nType in your name:",320-29*4,120);
 	sprintf	(text,"%s%c",curnametext,GetTickCount()%1000<500?'_':' ');
 	font16.Text(text,100,230);
 	}
 
-	if (whatin==IN_ABOUT) {
+	if (whatScreen==SCREEN_ABOUT) {
 	font8.Text(VERSIONNAME,0,472);
 	}
 
@@ -674,7 +667,7 @@ void dxGame::DrawFrame()
 	BlackFade(lpDDSBack);
 
 	font16.Text("\xd",260,200+curopt*20,CLRBIAS);
-	if (curmenu==0)	{
+	if (curmenu==MENU_MAIN)	{
 		font16.Text("BrickWarrior",240,170,CLRBIAS);
 		font16.Text("Game",280,200,CLRBIAS);
 		font16.Text("CD player",280,220,CLRBIAS);
@@ -682,40 +675,40 @@ void dxGame::DrawFrame()
 		font16.Text("About/Help",280,260,CLRBIAS);
 		font16.Text("Quit",280,280,CLRBIAS);
 		}
-	if (curmenu==1)	{
+	if (curmenu==MENU_PLAYERS)	{
 		font16.Text("How many players?",240,170,CLRBIAS);
 		font16.Text("One player",280,200,CLRBIAS);
 		font16.Text("Two players",280,220,CLRBIAS);
 		}
-	if (curmenu==4)	{ // game
+	if (curmenu==MENU_GAME)	{ // game
 		font16.Text("What do you want to do?",240,170,CLRBIAS);
 		font16.Text("Play a new game",280,200,CLRBIAS);
 		font16.Text("Load a game",280,220,CLRBIAS);
-		if (whatin==IN_GAME)
+		if (whatScreen==SCREEN_GAME)
 		font16.Text("Save this game",280,240,CLRBIAS);
 		else 
 		font16.Text("Cannot save",280,240,CLRBIAS);
 		}
-	if (curmenu==5)	{// load game
+	if (curmenu==MENU_LOAD)	{// load game
 		font16.Text("Load game",240,170,CLRBIAS);
 		for	(i=0;i<SAVEGAMES;i++) {
 		GetSaveTitle(i+1,text);
 		font16.Text(text,280,200+i*20,CLRBIAS);
 		}
 		}
-	if (curmenu==6)	{ // save game
+	if (curmenu==MENU_SAVE)	{ // save game
 		font16.Text("Save game",240,170,CLRBIAS);
 		for	(i=0;i<SAVEGAMES;i++) {
 		GetSaveTitle(i+1,text);
 		font16.Text(text,280,200+i*20,CLRBIAS);
 		}
 		}
-	if (curmenu==2)	{
+	if (curmenu==MENU_EPISODE)	{
 		font16.Text("Choose an episode:",240,170,CLRBIAS);
 		for	(i=0;i<episodes;i++)
 		font16.Text(episode[i].name,280,200+i*20,CLRBIAS);
 		}
-	if (curmenu==3)	{
+	if (curmenu==MENU_MUSIC)	{
 		if (!MusicCd->GetNumberOfTracks())
 		strcpy(text,"CD player - CD not inserted");
 		else
@@ -737,10 +730,10 @@ void dxGame::DrawFrame()
 
 int	dxGame::Init(HWND hWnd)
 	{
-	whatin=IN_TITLE; // title
-	quit=false;
+	whatScreen=SCREEN_TITLE; // title
+	hasQuit=false;
 	inmenu=false;
-	curmenu=0; // main menu
+	curmenu=MENU_MAIN;
 	curopt=0; // play!
 	menuopts=4;
 	mouseposx=320; mouseposy=240; lastmouse=false;
@@ -824,76 +817,3 @@ int	dxGame::Init(HWND hWnd)
 
 	return true; // worked
 	}
-
-void dxGame::LoadProperBack()
-	{
-	if (whatin==IN_GAME) background.Load(episode[curepisode].backname);
-	if (whatin==IN_ABOUT) background.Load("about.bmp");
-	if (whatin==IN_TITLE) background.Load("title.bmp");
-	if (whatin==IN_HIGHSCORE ||
-	whatin==IN_TYPENAME) background.Load("hiscore.bmp");
-	}
-
-void dxGame::MenuPressEnter()
-	{
-		if (curmenu==0)	{ // changed to ignore # of players
-		if (curopt==0) {curmenu=4; menuopts=3; curopt=0;} // game
-		if (curopt==1) {curmenu=3; curopt=0; menuopts=4;
-			MusicCd->Read(); if	(curcdtrack>MusicCd->GetNumberOfTracks()) curcdtrack=1;} // cd player
-		if (curopt==2) {inmenu=0; whatin=IN_HIGHSCORE; LoadProperBack();} // high score screen
-		if (curopt==3) {inmenu=0; sndIntro.Stop(); sndIntro.Play(); whatin=IN_ABOUT; LoadProperBack();}
-		if (curopt==4) quit=true;
-		}
-		else if	(curmenu==1) { // how many players (not actually used)
-		if (curopt==0) {players=1; menuopts=episodes;} // choose episode
-		if (curopt==1) {players=2; menuopts=episodes;}
-		curmenu=2; curopt=0;
-		if (episodes<=1) { // only one episode to choose!
-			curepisode=0; curballs=3; curlevel=1; mult=score=0;
-			NoPowerups();
-			ball[0].type=0;	LoadCurLevel();
-			whatin=IN_GAME;
-			LoadProperBack();
-			inmenu=0; // play!!!
-			}
-		}	
-		else if	(curmenu==4) { // game
-		if (curopt==0) {curmenu=2; curopt=0; menuopts=episodes;} // play
-		if (curopt==1) {curmenu=5; curopt=0; menuopts=SAVEGAMES;}; // load
-		if (curopt==2 && whatin==IN_GAME)
-			{curmenu=6;	curopt=0; menuopts=SAVEGAMES;};	// save
-		}
-		else if	(curmenu==2) { // episode chooser
-		curepisode=curopt; curballs=3; curlevel=1; mult=score=0;
-		NoPowerups();
-		ball[0].type=0;	LoadCurLevel();
-		whatin=IN_GAME;
-		LoadProperBack();
-		inmenu=0; // play!
-		}
-		else if	(curmenu==5) { // load game
-		if (DoesSaveExist(curopt+1)) {
-			LoadGame(curopt+1);
-			whatin=IN_GAME;
-			LoadProperBack();
-			inmenu=0; // play it!
-			}
-		}
-		else if	(curmenu==6) { // save game
-		if (whatin==IN_GAME) {
-			SaveGame(curopt+1);
-			inmenu=0;
-			}
-		}
-		else if	(curmenu==3) { // cd player
-		if (curopt==0) {
-			if (MusicCd->GetNumberOfTracks())
-			MusicCd->Play(curcdtrack);
-			else
-			MusicCd->Read();
-			}
-		if (curopt==1) {curcdtrack++; if (curcdtrack>MusicCd->GetNumberOfTracks()) curcdtrack=1;}
-		if (curopt==2) {curcdtrack--; if (curcdtrack<1)	curcdtrack=MusicCd->GetNumberOfTracks();}
-		if (curopt==3) MusicCd->Stop();
-		}
-	} // menupressenter
