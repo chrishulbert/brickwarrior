@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "game.h"
 #include "image.h"
@@ -170,7 +171,7 @@ static struct {
 	// Menu:
 	int	menuopts, curopt, curmenu;
 	int inMenu; // 0 = not in menu, 1=?, 2=special value? TODO figure out meaning.
-	int menusel, mouseposx, mouseposy, lastmouse; // 0=game 1=highscores 2=titlescreen 3=aboutscreen
+	int mouseposx, mouseposy, lastmouse;
 	Screen whatScreen;
 
 	// Scoring:
@@ -189,6 +190,9 @@ static struct {
 void save_high_scores();
 void draw_rect(uint32_t *framebuffer, int x, int y, int width, int height, uint32_t colour);
 void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y);
+void load_proper_back();
+void load_episodes(char *fn);
+void load_high_scores();
 
 // Sokol game lifecycle:
 
@@ -197,7 +201,55 @@ void game_init() {
 	state.font8 = image_load("assets/img/font8.png");
 	state.font16 = image_load("assets/img/font16.png");
 	state.font16blue = image_load("assets/img/font16blue.png");
-	state.background = image_load("assets/img/back.png");
+
+	state.whatScreen=SCREEN_TITLE;
+	load_proper_back();
+
+	state.hasQuit=false;
+	state.inMenu=0;
+	state.curmenu=MENU_MAIN;
+	state.curopt=0; // Play!
+	state.menuopts=4;
+
+	// TODO what do we do re mouse?
+	state.mouseposx=320;
+	state.mouseposy=240;
+	state.lastmouse=false;
+
+	state.curframe=state.framerateinc=state.framerate=0;
+	srand(time(NULL));
+
+	// Sounds:
+	// TODO use dr_wav header library.
+	// sndKillBlock.Load(Sound,"sounds\\killblok.wav");
+	// sndTinkBlock.Load(Sound,"sounds\\tinkblok.wav");
+	// sndBounce.Load(Sound,"sounds\\bounce.wav");
+	// sndExtraBall.Load(Sound,"sounds\\extrabal.wav");
+	// sndMult100.Load(Sound,"sounds\\mult100.wav");
+	// sndMult500.Load(Sound,"sounds\\mult500.wav");
+	// sndMult1000.Load(Sound,"sounds\\mult1000.wav");
+	// sndMult1500.Load(Sound,"sounds\\mult1500.wav");
+	// sndMult2000.Load(Sound,"sounds\\mult2000.wav");
+	// sndNewHighscore.Load(Sound,"sounds\\newhiscr.wav");
+	// sndIntro.Load(Sound,"sounds\\intro.wav");
+	// sndLoseBall.Load(Sound,"sounds\\loseball.wav");
+	// // powerups below
+	// sndBubble.Load(Sound,"sounds\\bubble.wav");
+	// sndCoolBall.Load(Sound,"sounds\\coolball.wav");
+	// sndFast.Load(Sound,"sounds\\fast.wav");
+	// sndSlow.Load(Sound,"sounds\\slow.wav");
+	// sndThin.Load(Sound,"sounds\\thin.wav");
+	// sndWide.Load(Sound,"sounds\\wide.wav");
+	// sndTripleBall.Load(Sound,"sounds\\triple.wav");
+	// sndLotsBall.Load(Sound,"sounds\\lotsball.wav");
+	// sndUpdown.Load(Sound,"sounds\\updown.wav");
+	// sndGetKill.Load(Sound,"sounds\\getkill.wav");
+	// sndRecover.Load(Sound,"sounds\\recover.wav");
+	// sndCatch.Load(Sound,"sounds\\catch.wav");
+	// sndProtection.Load(Sound,"sounds\\protect.wav");
+
+	load_episodes("assets/levels/episodes.inf");
+	load_high_scores();
 }
 
 void game_deinit() {
