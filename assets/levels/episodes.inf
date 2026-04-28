@@ -2,9 +2,9 @@
 ; {episode name,number of levels,
 ;  base file name,background filename}
 
-{Chris,30,chris,back.bmp}
-{Phil,30,phil,back.bmp}
-{Phil II,5,phillip,back.bmp}
-{MacBrickout,30,mac,macback.bmp}
-{Laura,10,laura,back.bmp}
-{Vin,10,vin,back.bmp}
+{Chris,30,chris,back}
+{Phil,30,phil,back}
+{Phil II,5,phillip,back}
+{Homage,30,mac,backg}
+{Laura,10,laura,back}
+{Vin,10,vin,back}
