@@ -106,9 +106,9 @@ static struct {
 	bool hasQuit;
 
 	Image *sprites;
-	Image *mousecursor;
 	Image *font8;
 	Image *font16;
+	Image *font16blue;
 	Image *background;
 
 	// Powerups:
@@ -170,14 +170,18 @@ void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y);
 // Sokol game lifecycle:
 
 void game_init() {
+	state.sprites = image_load("assets/img/sprites.png");
+	state.font8 = image_load("assets/img/font8.png");
+	state.font16 = image_load("assets/img/font16.png");
+	state.font16blue = image_load("assets/img/font16blue.png");
 	state.background = image_load("assets/img/back.png");
 }
 
 void game_deinit() {
 	image_free(state.sprites);
-	image_free(state.mousecursor);
 	image_free(state.font8);
 	image_free(state.font16);
+	image_free(state.font16blue);
 	image_free(state.background);
 	save_high_scores();
 }
