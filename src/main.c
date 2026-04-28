@@ -86,11 +86,15 @@ void init(void) {
             .clear_value = { 0, 0, 0, 1 }
         }
     };
+
+    // Let the game logic have a chance to init:
+    game_init();
 }
 
 // Called every frame:
 void frame(void) {
-    // Give the game a chance to draw:
+    // Let the game do its thing:
+    game_update((float)sapp_frame_duration());
     game_draw(state.framebuffer);
 
     // Copy the framebuffer to the GPU:
@@ -140,6 +144,7 @@ void frame(void) {
 
 // Called when the app shuts down:
 void cleanup(void) {
+    game_deinit();
     free(state.framebuffer);
     state.framebuffer = NULL;
     sg_shutdown();

@@ -5,6 +5,7 @@ help:
 # Compile for macOS, just the binary:
 macos: sokol stb
 	cc \
+		-O3 \
 		-x objective-c \
 		-fobjc-arc \
 		-framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore \

@@ -8,4 +8,8 @@
 #define SCREENHEIGHT (480)
 #define TITLE ("BrickWarrior")
 
+// Pico8-inspired lifecycle functions:
+void game_init();
+void game_deinit();
+void game_update(float duration);
 void game_draw(uint32_t *framebuffer);

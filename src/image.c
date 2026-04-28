@@ -21,6 +21,9 @@ Image* image_load(const char *filename) {
 }
 
 void image_free(Image* image) {
-    stbi_image_free(image->data);
+    if (!image) { return; }
+    if (image->data) {
+        stbi_image_free(image->data);
+    }
     free(image);
 }
