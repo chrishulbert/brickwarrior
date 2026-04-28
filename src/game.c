@@ -11,13 +11,17 @@
 #include "endian.h"
 #include "helpers.h"
 
-#define	HIGHSCORES	20
-#define	SAVEGAMES	6
-#define	MAXEPISODES	20 // fair few
-#define	MAXBRICKS	1000 // a lot!!!
-#define	MAXPOWERUPS	10 // powerups on screen
-#define	MAXBALLS	9
-#define	MAXMOVES	10
+#define	VERSIONNAME		"Version 20"
+#define	HIGHSCORES		20
+#define	SAVEGAMES		6
+#define	MAXEPISODES		20
+#define	MAXBRICKS		1000 // a lot!!!
+#define	MAXPOWERUPS		10 // Powerups on screen.
+#define	MAXBALLS		9
+#define	MAXMOVES		10
+#define	BALLWID			12
+#define	BALLHT			12
+#define	POWERUPCHANCE	5 // One in N bricks has a powerup.
 
 typedef enum {
 	PWR_BUBBLE=0,

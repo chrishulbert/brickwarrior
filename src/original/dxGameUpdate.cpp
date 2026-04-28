@@ -8,41 +8,7 @@
 #include "vkeys.h"
 #include "settings.h"
 
-#define	BALLWID	12
-#define	BALLHT	12
 
-#define	CLRBIAS	0x80 // bias for the text
-#define	POWERUPCHANCE	5// one in 5 bricks has a powerup
-
-#define	VERSIONNAME	"Version 19"
-
-enum {IN_TITLE=0,IN_HIGHSCORE,IN_GAME,IN_TYPENAME,IN_ABOUT};
-
-#define	SQR(a) (a*a)
-// clamp a to the range b->c
-#define	MYCLAMP(a,b,c) {if ((a)<(b)) (a)=(b); if ((a)>(c)) (a)=(c);}
-// is x,y inside x1,y1->x2,y2?
-#define	MYINSIDE(x,y,x1,y1,x2,y2) (x>x1	&& x<x2	&& y>y1	&& y<y2)
-#define	ABS(a) ((a)>=0?(a):-(a)) // absolute
-#define	AVG(a,b) ((a+b)/2) // average
-#define	PCNT(a,b) (b?(a)*100/(b):100) // percent
-// which side of the square x1,y1->x2,y2 is x,y on?
-enum {RIGHT=1,BOTTOM,LEFT,TOP};
-int	MYWHICHSIDE(long x,long	y,long x1,long y1,long x2,long y2)
-	{
-	// 1 = right, 2=bottom, 3=left, 4=top
-	int	dx,dy;
-	dx = PCNT(x	- AVG(x1,x2),x2-x1);
-	dy = PCNT(y	- AVG(y1,y2),y2-y1);
-	if (ABS(dx)>ABS(dy)) { // left or right
-	if (dx>0) return RIGHT;
-	return LEFT;
-	}
-	else	{ // top/bottom
-	if (dy>0) return BOTTOM;
-	return TOP;
-	}
-	}
 
 void dxGame::UpdateFrame(char *keybuffer,char *keystat,long	mousex,long	mousey,int mousebutton,long	deltams)
 	{
