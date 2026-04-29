@@ -11,5 +11,6 @@
 // Pico8-inspired lifecycle functions:
 void game_init();
 void game_deinit();
-void game_update(float duration);
-void game_draw(uint32_t *framebuffer);
+void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars); // It'd be more pure if update wasn't passed the frame admittedly...
+void game_draw(uint32_t* framebuffer);
+bool game_should_quit();

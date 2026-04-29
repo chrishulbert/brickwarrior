@@ -20,6 +20,8 @@
 
 #include "game.h"
 
+#define QUEUES_LEN 20 // Length of the queue arrays. Actual queueable events are this-1 because it's null terminated.
+
 // State for our application:
 static struct {
     sg_pass_action pass_action;
@@ -29,6 +31,8 @@ static struct {
     sg_image framebuffer_image;
     sg_view framebuffer_view;
     sg_sampler framebuffer_sampler;
+    int keys[QUEUES_LEN]; // Keys like F1, Escape (also includes characters, but don't use it for that).
+    int chars[QUEUES_LEN]; // For text input, as it takes shift into account.
 } state;
 
 // Called once at the start:
@@ -93,8 +97,15 @@ void init(void) {
 
 // Called every frame:
 void frame(void) {
-    // Let the game do its thing:
-    game_update((float)sapp_frame_duration());
+    // Update the game:
+    game_update(state.framebuffer, (float)sapp_frame_duration(), state.keys, state.chars);
+    state.keys[0] = 0; // Empty the event queues.
+    state.chars[0] = 0;
+    if (game_should_quit()) {
+        sapp_request_quit();
+    }
+
+    // Draw the game:
     game_draw(state.framebuffer);
 
     // Copy the framebuffer to the GPU:
@@ -142,6 +153,32 @@ void frame(void) {
     sg_commit();
 }
 
+// Called on key events:
+void event(const sapp_event* ev) {
+    switch (ev->type) {
+        case SAPP_EVENTTYPE_KEY_DOWN:
+            for (int i=0; i<QUEUES_LEN-1; i++) { // -1 to leave space for the null terminator.
+                if (state.keys[i] == 0) {
+                    state.keys[i] = ev->key_code;
+                    state.keys[i+1] = 0;
+                    break;
+                }
+            }
+            break;
+        case SAPP_EVENTTYPE_CHAR:
+            for (int i=0; i<QUEUES_LEN-1; i++) { // -1 to leave space for the null terminator.
+                if (state.chars[i] == 0) {
+                    state.chars[i] = ev->char_code;
+                    state.chars[i+1] = 0;
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 // Called when the app shuts down:
 void cleanup(void) {
     game_deinit();
@@ -156,6 +193,7 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         .init_cb = init,
         .frame_cb = frame,
         .cleanup_cb = cleanup,
+        .event_cb = event,
         .width = SCREENWIDTH,
         .height = SCREENHEIGHT,
         .window_title = TITLE,

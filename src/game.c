@@ -1,4 +1,5 @@
 // TODO refactor non-game-specific stuff eg drawing into their own helpers.
+// TODO tidy up unused assets.
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -6,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #include "game.h"
 #include "image.h"
@@ -37,7 +39,8 @@ typedef enum {
 	PWR_PROTECTION,
 	PWR_BLACKBUBBLE,
 	PWR_RANDOM,
-	PWR_LAST,
+	PWR_LAST_VALID, // The marker for the last valid ones.
+	PWR_SPECIAL_PADDLE, // A special 'powerup' that's really simply a falling half-paddle.
 } PowerupType;
 
 typedef struct {
@@ -90,7 +93,6 @@ typedef enum {
 	MENU_MAIN=0,
 	MENU_PLAYERS, // How many players. TODO remove
 	MENU_EPISODE, // Choose an episode.
-	MENU_MUSIC, // CD player - todo remove?
 	MENU_GAME, // Play/load/save.
 	MENU_LOAD, // Load game.
 	MENU_SAVE, // Save game.
@@ -138,7 +140,7 @@ static struct {
 	Powerup powerup[MAXPOWERUPS];
 	int powerups;
 	bool hasUpdown; // Have they got the updown?
-	bool isKilled; // Is the paddle red?
+	bool isKilled; // Is the paddle red? Then it won't bounce balls any more but a powerup can recover it.
 	bool hasProtection; // Have protection bar?
 	bool hasCatch;
 	bool isCaught;
@@ -150,8 +152,6 @@ static struct {
 	int padx;
 	int pady;
 	int padwidth;
-	int pdeltax;
-	int pdeltay; // How far the paddle moved this frame.
 
 	Ball ball[MAXBALLS];
 	int balls;
@@ -161,24 +161,24 @@ static struct {
 
 	int players; // One or two players. TODO remove.
 	char levelname[100];
-	int bricksLeft;
 
 	// Episodes:
 	Episode episode[20];
-	int episodes, curEpisode, curLevel, curBalls,
+	int episodes, curEpisode, curLevel,
+		curBalls, // Kindof like 'lives remaining'.
 		ballStartX, ballStartY, ballStartXV, ballStartYV, ballStartActive;
 
 	// Menu:
 	int	menuopts, curopt, curmenu;
-	int inMenu; // 0 = not in menu, 1=?, 2=special value? TODO figure out meaning.
-	int mouseposx, mouseposy, lastmouse;
+	bool inMenu;
+	int mouseposx, mouseposy;
 	Screen whatScreen;
 
 	// Scoring:
 	int mult, score;
 
-	// Framerate:
-	int curframe, framerateinc, framerate, timesincelasthit;
+	int timesincelasthit;
+	float runtime; // Seconds.
 
 	// Highscores:
 	Highscore highscore[HIGHSCORES];
@@ -187,12 +187,24 @@ static struct {
 } state;
 
 // Forward declarations:
+void clip_powerup(int index);
+void drop_catch(bool force);
+PowerupType	choose_powerup();
+void redraw_brick(int i, uint32_t *framebuffer);
+void redraw_rect(uint32_t *framebuffer, int left, int top, int wid, int ht, int bricktoskip);
+void menu_press_enter();
+void load_cur_level();
 void save_high_scores();
+void get_save_title(int slot, char* title);
 void draw_rect(uint32_t *framebuffer, int x, int y, int width, int height, uint32_t colour);
 void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y);
 void load_proper_back();
 void load_episodes(char *fn);
 void load_high_scores();
+void draw_game_screen(uint32_t *framebuffer);
+void draw_subimage(uint32_t *framebuffer, Image* image, int dstLeft, int dstTop, int srcLeft, int srcTop, int width, int height);
+void draw_paddle(uint32_t *framebuffer, int x, int y, int width);
+void black_fade(uint32_t *framebuffer);
 
 // Sokol game lifecycle:
 
@@ -206,7 +218,7 @@ void game_init() {
 	load_proper_back();
 
 	state.hasQuit=false;
-	state.inMenu=0;
+	state.inMenu=false;
 	state.curmenu=MENU_MAIN;
 	state.curopt=0; // Play!
 	state.menuopts=4;
@@ -214,9 +226,8 @@ void game_init() {
 	// TODO what do we do re mouse?
 	state.mouseposx=320;
 	state.mouseposy=240;
-	state.lastmouse=false;
 
-	state.curframe=state.framerateinc=state.framerate=0;
+	state.runtime = 0;
 	srand(time(NULL));
 
 	// Sounds:
@@ -252,6 +263,10 @@ void game_init() {
 	load_high_scores();
 }
 
+bool game_should_quit() {
+	return state.hasQuit;
+}
+
 void game_deinit() {
 	image_free(state.sprites);
 	image_free(state.font8);
@@ -261,34 +276,765 @@ void game_deinit() {
 	save_high_scores();
 }
 
-void game_update(float duration) {
+void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
+	state.runtime += duration; // Not affected by pause because we still want cursor to blink in menu.
+	if (state.inMenu) { duration=0; } // Paused!
+	if (duration > 0.05) { duration=0.05; }; // Minimum 20 fps (if it goes over it is probably something odd).
+	int deltams = duration * 1000; // For compatibility with the old ms code.
+
+	// int		i,j,k,l,ox,oy,delta,numbricks;
+	// long	speed,angle;
+	
+	if (state.inMenu) {
+		// TODO think about mouse?
+		// mouseposx += mousex;
+		// mouseposy += mousey;
+		// MYCLAMP(mouseposx,0,639);
+		// MYCLAMP(mouseposy,0,479);
+	}
+
+	// Keys:
+	for	(int i=0; keys[i]; i++) {
+		switch (keys[i]) {
+		case KEYCODE_F10: // Skip level cheat.
+			state.curLevel++;
+			load_cur_level();
+			break;
+		case KEYCODE_F11: // Slow cheat.
+			for	(int k=0; k<state.balls; k++) {
+				float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
+				float angle = atan2(state.ball[k].yv, state.ball[k].xv);
+				speed -= 50; // slow it!
+				if (speed<0) { speed=0; }
+				state.ball[k].xv = cos(angle)*speed*100;
+				state.ball[k].yv = sin(angle)*speed*100;
+			}
+			break;
+		case KEYCODE_F12: // Speedup cheat.
+			for	(int k=0; k<state.balls; k++) {
+				float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
+				float angle = atan2(state.ball[k].yv, state.ball[k].xv);
+				speed += 50; // increase it!
+				if (speed>1000)	{ speed=1000; }
+				state.ball[k].xv = cos(angle)*speed*100;
+				state.ball[k].yv = sin(angle)*speed*100;
+			}
+			break;
+		case KEYCODE_F1: // New game / select episode.
+			state.inMenu=true; state.curmenu=MENU_EPISODE; state.curopt=0; state.menuopts=state.episodes;
+			break;
+		case KEYCODE_F2: // Save.
+			if (state.whatScreen==SCREEN_GAME) {
+				state.inMenu=true; state.curmenu=MENU_SAVE; state.curopt=0; state.menuopts=SAVEGAMES;
+			}
+			break;
+		case KEYCODE_F3: // Load.
+			state.inMenu=true; state.curmenu=MENU_LOAD; state.curopt=0; state.menuopts=SAVEGAMES;
+			break;
+		case KEYCODE_ESCAPE:
+			if (state.inMenu) { // Go up a menu level.
+				switch (state.curmenu) {
+					case MENU_MAIN:
+						state.inMenu = false;
+						break;
+					case MENU_EPISODE:
+						state.curmenu = MENU_GAME;
+						state.menuopts = 3;
+						state.curopt = 0;
+						break;
+					case MENU_GAME:
+						state.curmenu = MENU_MAIN;
+						state.menuopts = 4;
+						state.curopt = 0;
+						break;
+					case MENU_LOAD:
+						state.curmenu = MENU_GAME;
+						state.menuopts = 3;
+						state.curopt = 1;
+						break;
+					case MENU_SAVE:
+						state.curmenu = MENU_GAME;
+						state.menuopts = 3;
+						state.curopt = 2;
+						break;
+				}
+			} else { // Enter the menu.
+				state.curmenu=MENU_MAIN;
+				state.curopt=0;
+				state.menuopts=4;
+				state.inMenu=true;
+			}
+			break;
+		case KEYCODE_ENTER:
+		case KEYCODE_KP_ENTER:
+			if (state.inMenu) {
+				menu_press_enter();
+			}
+			break;
+		case KEYCODE_UP:
+			if (state.inMenu) {
+				state.curopt--;
+				if (state.curopt < 0) { state.curopt += state.menuopts; }
+			}
+			break;
+		case KEYCODE_DOWN:
+			if (state.inMenu) {
+				state.curopt++;
+				if (state.curopt >= state.menuopts) { state.curopt = 0; }
+			}
+			break;
+		}
+	}
+
+	int pdeltax=0; // How far the paddle moved this frame.
+	int pdeltay=0;
+
+	if (state.whatScreen==SCREEN_GAME) {
+		if (!state.inMenu) { // Only move paddle if not in the menu.
+			// outside border 19,44,620,480 (things must be inside not on this line)
+			// TODO change this to somehow work with sokol, capture the mouse?
+			/*
+			int i=padx;	padx+=mousex*100; MYCLAMP(padx,2000+padwidth/2,62000-padwidth/2);
+			pdeltax=padx-i;	// how far did it move?
+			i=pady;	pady+=mousey*100; MYCLAMP(pady,32000,48000);
+			if (!updown) pady=42000;
+			pdeltay=pady-i;	// how far up/down did it go?
+			if (mousebutton	&& caught) caught=false; // let it go
+			if (caught)	timesincelasthit=0;
+			*/
+		}
+
+		// Moving bricks:
+		if (duration>0) { // Don't move when paused.
+			for (int i=0; i<state.bricks; i++) {
+				if (state.brick[i].moves) {
+					int j=state.brick[i].curmovetime;
+					state.brick[i].curmovetime += deltams;
+					MYCLAMP(state.brick[i].curmovetime, 0, state.brick[i].movetime[state.brick[i].curmove]);
+					int k=state.brick[i].curmovetime-j; // Time passed.
+					int l=state.brick[i].movetime[state.brick[i].curmove]; // Total time.
+					// deltatime / time left * dist to go = how far to go
+					// Save old pos:
+					int ox=state.brick[i].x/100;
+					int oy=state.brick[i].y/100;
+
+					if (l-j>0) { // Avoid div0.
+						int	dist;
+						dist=state.brick[i].curmovex - state.brick[i].x/100;
+						state.brick[i].x += 100 * k * dist / (l-j);
+						dist=state.brick[i].curmovey - state.brick[i].y/100;
+						state.brick[i].y += 100 * k * dist / (l-j);
+					}
+					if (state.brick[i].curmovetime>=state.brick[i].movetime[state.brick[i].curmove]) {
+						// next move
+						state.brick[i].x=state.brick[i].curmovex*100;
+						state.brick[i].y=state.brick[i].curmovey*100;
+						state.brick[i].curmove++;
+						if (state.brick[i].curmove>=state.brick[i].moves) state.brick[i].curmove=0;
+						state.brick[i].curmovetime=0;
+						k=state.brick[i].movedir[state.brick[i].curmove];
+						if (k==1) // up
+							state.brick[i].curmovey-=state.brick[i].movedist[state.brick[i].curmove];
+						if (k==2) // right
+							state.brick[i].curmovex+=state.brick[i].movedist[state.brick[i].curmove];
+						if (k==3) // down
+							state.brick[i].curmovey+=state.brick[i].movedist[state.brick[i].curmove];
+						if (k==4) // left
+							state.brick[i].curmovex-=state.brick[i].movedist[state.brick[i].curmove];
+					}
+					if (ox!=state.brick[i].x/100 || oy!=state.brick[i].y/100) { // Only redraw it if it actually moved.
+						redraw_rect(framebuffer, ox-1, oy-1, state.brick[i].wid/100+2, state.brick[i].ht/100+2, i);
+						redraw_brick(i, framebuffer); // Draw it now it's moved.
+					}
+				}
+			}
+		}
+
+		// Update flashing bricks and count # of bricks:
+		int numbricks=0; // Number of destroyable bricks remaining.
+		for	(int i=0; i<state.bricks; i++) { 
+			if (state.brick[i].flashtime)	{
+				state.brick[i].flashtime -= deltams;
+				if (state.brick[i].flashtime <= 0) {
+					state.brick[i].flashtime = 0;
+					redraw_brick(i, framebuffer);
+				}
+			}
+			if (state.brick[i].hits) {
+				numbricks++;
+			}
+		}
+
+		// Finished the level?
+		if (!numbricks)	{
+			if (state.curLevel < state.episode[state.curEpisode].levels) {
+				// Progress to the next level.
+				if (state.balls>=3) {
+					state.curBalls++; // If they have all 3 balls when they finish a level then they get a new ball
+					// sndExtraBall.Play(); // TODO
+				}
+				state.curLevel++;
+				load_cur_level();
+			} else { // Finished the episode!
+				state.curLevel = -1; // a win!
+				state.score += 10*state.mult*state.mult;
+				state.mult=0;
+				if (state.score > state.highscore[HIGHSCORES-1].score) {
+					// Made it into the high scores!
+					// sndNewHighscore.Play(); // TODO sound
+					state.whatScreen = SCREEN_TYPENAME;	
+					state.curnametext[0]=0; state.curnameoff=0;	// Start the name off.
+				} else { // No new high score.
+					state.whatScreen = SCREEN_HIGHSCORE;
+				}
+				load_proper_back();
+			}
+		}
+		
+		// Powerups:
+		for	(int i=0; i<state.powerups; i++) {
+			// Slide down:
+			state.powerup[i].y += deltams*20; // (deltams/1000*20000 -> 200 pixels per sec down).
+			// Fell too far?
+			bool shouldRemovePowerup = state.powerup[i].y > 48500;
+			// Is it caught?
+			if (state.powerup[i].isCatchable &&
+				MYINSIDE(state.powerup[i].x, state.powerup[i].y, state.padx-state.padwidth/2-1500, state.pady-1000, state.padx+state.padwidth/2+1500, state.pady+1000)) {
+				// Give it an actual non-kill type if it's a random:
+				PowerupType	type = state.powerup[i].type;
+				if (type==PWR_RANDOM) {
+					while (type==PWR_RANDOM || type==PWR_KILL) {
+						type = choose_powerup();
+					}
+				}
+				bool powerupDidKill = false;
+				switch (type) {
+					case PWR_BUBBLE:
+					case PWR_BLACKBUBBLE:
+						drop_catch(false);
+						for	(int k=0; k<state.balls; k++) {
+							if (state.ball[k].type==0) {
+								state.ball[k].type = 2; // Green -> bubble.
+							} else { // Yellow, bubble or above.
+								if (type==PWR_BUBBLE) {
+									state.ball[k].type=3; // Laser.
+								} else if (type==PWR_BLACKBUBBLE) {
+									state.ball[k].type=4; // Purple.
+								}
+							}
+						}
+						// if (!state.isKilled) sndCoolBall.Play(); // TODO sound
+						break;
+					case PWR_PROTECTION:
+						//if (!kill && soundinit)	sndProtection.Play(); // TODO sound
+						drop_catch(false);
+						state.hasProtection=true;
+						break;
+					case PWR_CATCH:
+						// if (!kill && soundinit)	sndCatch.Play(); // TODO sound
+						state.hasCatch=true;
+						state.isCaught=false;
+						break;
+					case PWR_UPDOWN:
+						// if (!kill && soundinit)	sndUpdown.Play(); // TODO sound
+						drop_catch(false);
+						state.hasUpdown=1;
+						break;
+					case PWR_FAST:
+						// if (!kill && soundinit)	sndFast.Play(); // TODO sound
+						drop_catch(false);
+						for	(int k=0; k<state.balls; k++) {	// how bodgy can you get?
+							float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
+							float angle = atan2(state.ball[k].yv, state.ball[k].xv);
+							speed+=100;	// increase it!
+							if (speed>800) speed=800;
+							state.ball[k].xv = cos(angle)*speed*100;
+							state.ball[k].yv = sin(angle)*speed*100;
+						}
+						break;
+					case PWR_SLOW:
+						// if (!kill && soundinit)	sndSlow.Play(); // TODO sound
+						drop_catch(false);
+						for	(int k=0; k<state.balls; k++) {
+							float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
+							float angle = atan2(state.ball[k].yv, state.ball[k].xv);
+							speed-=100;	// slow it!
+							if (speed<200) speed=200;
+							state.ball[k].xv = cos(angle)*speed*100;
+							state.ball[k].yv = sin(angle)*speed*100;
+						}
+						break;
+					case PWR_WIDE:
+						// if (!kill && soundinit)	sndWide.Play(); // TODO sound
+						drop_catch(false);
+						state.padwidth+=2000;	// 10 pixels each side
+						if (state.padwidth>=12000) { // Drop half the paddle if it gets too big.
+							state.padwidth-=2000; // undo the expansion...
+							state.padwidth/=2; // ...and drop half!
+							state.padx -= state.padwidth/2;
+							// Drop half the paddle as a faux-powerup.
+							if (state.powerups<MAXPOWERUPS) {
+								state.powerup[state.powerups].x = state.padx + state.padwidth;
+								state.powerup[state.powerups].y = state.pady;
+								state.powerup[state.powerups].type = PWR_SPECIAL_PADDLE;
+								state.powerup[state.powerups].isCatchable = false;
+								clip_powerup(state.powerups);
+								state.powerups++;
+							}
+						}
+						break;
+					case PWR_THIN:
+						// if (!kill && soundinit)	sndThin.Play(); // TODO sound
+						drop_catch(false);
+						if (state.padwidth>6000) {
+							state.padwidth-=2000;
+						}
+						break;
+
+					case PWR_TRIPLE:
+						drop_catch(false);
+						int ballCountBeforeSplitting = state.balls; // So it doesn't try splitting the new balls.
+						for	(int k=0; k<ballCountBeforeSplitting; k++) {
+							// Make a yellow or green split into 2 yellows and 1 green:
+							int newballtypea=state.ball[k].type;
+							int newballtypeb=state.ball[k].type;
+							if (state.ball[k].type==0) newballtypea=newballtypeb=1;
+							if (state.ball[k].type==1) newballtypea=0;
+							// Add ball A:
+							if (state.balls<MAXBALLS) {
+								state.ball[state.balls].x=state.ball[k].x;
+								state.ball[state.balls].y=state.ball[k].y;
+								float speed = sqrt(SQR(state.ball[k].xv) + SQR(state.ball[k].yv));
+								float angle = atan2(state.ball[k].yv, state.ball[k].xv) - 0.5;
+								state.ball[state.balls].xv=cos(angle)*speed;
+								state.ball[state.balls].yv=sin(angle)*speed;
+								state.ball[state.balls].active=state.ball[k].active;
+								state.ball[state.balls].type=newballtypea;
+								state.balls++;
+							}
+							// Add ball B:
+							if (state.balls<MAXBALLS)	{
+								state.ball[state.balls].x=state.ball[k].x;
+								state.ball[state.balls].y=state.ball[k].y;
+								float speed = sqrt(SQR(state.ball[k].xv) + SQR(state.ball[k].yv));
+								float angle = atan2(state.ball[k].yv, state.ball[k].xv) - 0.5;
+								state.ball[state.balls].xv=cos(angle)*speed;
+								state.ball[state.balls].yv=sin(angle)*speed;
+								state.ball[state.balls].active=state.ball[k].active;
+								state.ball[state.balls].type=newballtypeb;
+								state.balls++;
+							}
+						} // for k...
+						// if (!kill && soundinit)	{ // TODO sound
+						// 	if (balls<=3) {sndTripleBall.Stop(); sndTripleBall.Play();}
+						// 	else {sndLotsBall.Stop(); sndLotsBall.Play();}
+						// }
+						break;
+					case PWR_KILL:
+						// if (soundinit) sndGetKill.Play(); // TODO sound
+						if (state.hasCatch) {
+							drop_catch(true); // Only drop the catch! (phew) (true=force it to drop even if you have a bubble/laser)
+						} else {
+							powerupDidKill = true;
+						}
+						break;
+					case PWR_RANDOM:
+					case PWR_LAST_VALID:
+					case PWR_SPECIAL_PADDLE:
+						break; // These aren't normal powerups, and the type can't be random by this point.
+				}
+				//  Unless they caught a 'kill'.
+				if (powerupDidKill) {
+					state.isKilled = true;
+				} else {
+					if (state.isKilled) {
+						// Recovered a dead/red paddle by catching a non-killing powerup.
+						state.isKilled = false;
+						// if (soundinit) sndRecover.Play(); // TODO sound
+						state.score += 500000;
+					}
+				}
+				shouldRemovePowerup = true; // Caught the powerup, so remove it!
+			}
+			if (shouldRemovePowerup) {
+				memmove(&state.powerup[i], &state.powerup[i+1], (state.powerups-i-1)*sizeof(Powerup));
+				state.powerups--;
+				i--;
+			}
+		}
+		/*
+
+		for	(i=0;i<balls;i++) {
+			ox=ball[i].x; oy=ball[i].y;
+			delta=max((abs(ball[i].xv)+abs(ball[i].yv))*deltams/300000,1);
+
+			if (caught)	{
+			if (caughtball==i) {
+				ball[i].x+=pdeltax;
+				ball[i].y+=pdeltay;
+				if (ball[i].x<2000+BALLWID*50) ball[i].x=2000+BALLWID*50;
+				if (ball[i].x>62000-BALLWID*50)	ball[i].x=62000-BALLWID*50;
+				//if (ball[i].y<4500+BALLHT*50) ball[i].y=4500+BALLHT*50; // not really needed unless you have full screen movement with the updown and catch
+				}
+			}
+			else 
+			for	(l=1;l<=delta;l++) {
+			ball[i].x=ox+ball[i].xv*deltams*l/delta/1000;
+			ball[i].y=oy+ball[i].yv*deltams*l/delta/1000;
+			//ball[i].x = ball[i].x + ball[i].xv * frametime;
+			//ball[i].y = ball[i].y + ball[i].yv * frametime;
+
+			// hit paddle (must be going down for the paddle to affect it) and the paddle must NOT be red (killed)
+			if (ball[i].yv>0 &&	!kill && MYINSIDE(ball[i].x,ball[i].y,padx-padwidth/2-BALLWID*50,pady-500-BALLHT*50,padx+padwidth/2+BALLWID*50,pady+500+BALLHT*50))	{
+				timesincelasthit=0;
+				score+=10*mult*mult;
+				mult=0;
+
+				if (!ball[i].active) {
+				ball[i].xv*=2;
+				ball[i].yv*=2;
+				ball[i].active=5; // it has now hit the paddle
+				// the 5 means it was just caught this frame
+				}
+				// use isoc, so that the speed remains the same
+				angle=270+90*(ball[i].x-padx)/padwidth;
+				// the / 100 gets the velocities into a range that can be squared without an overflow
+				speed=long(sqrt(SQR(ball[i].xv/100)+SQR(ball[i].yv/100))+.5);
+				ball[i].xv=long(cos(angle/57.67)*speed*100);
+				ball[i].yv=long(sin(angle/57.67)*speed*100);
+				if (havecatch) {caught=true; caughtball=i;}
+				l=delta; // dont move the ball any more
+				}
+
+			int	hits,oxv,oyv,ox,oy,tx,ty,bx,by,k1,k2;
+			hits=0;	oxv=ball[i].xv;	oyv=ball[i].yv;
+			ox=ball[i].x; oy=ball[i].y;
+			if (ball[i].active==1) // true means it is active, but not caught just this frame
+			for	(j=0;j<bricks;j++)
+				if (MYINSIDE(ball[i].x,ball[i].y,brick[j].x-BALLWID*50,brick[j].y-BALLHT*50,
+				brick[j].x+brick[j].wid+BALLWID*50,brick[j].y+brick[j].ht+BALLHT*50)) {
+				k=WhichSide(ball[i].x,ball[i].y,brick[j].x,brick[j].y,
+					brick[j].x+brick[j].wid,brick[j].y+brick[j].ht);
+				if (hits==0) {
+					tx=brick[j].x;
+					ty=brick[j].y;
+					bx=brick[j].x+brick[j].wid;
+					by=brick[j].y+brick[j].ht;
+					k1=k;
+					hits++;
+					}
+				else	{
+					tx=min(brick[j].x,tx);
+					ty=min(brick[j].y,ty);
+					bx=max(brick[j].x+brick[j].wid,bx);
+					by=max(brick[j].y+brick[j].ht,by);
+					hits++;
+					if (hits==2) k2=k;
+					}
+
+				if (ball[i].type!=3) {// not a laser
+					// *** bounce the ball off moving bricks x1234x
+					long	movexv,moveyv;
+					movexv=moveyv=0;
+					
+					l=-1;
+					if (brick[j].moves) { // moving brick
+						l=brick[j].curmove;
+						// movexv/yv is in pixels per sec
+						// ballxv is in 100 pixels per sec
+						// movetime is in milliseconds
+						if (brick[j].movetime[l]>0) { // don't do a div by 0
+							if (brick[j].movedir[l]==1) // up
+								moveyv=-brick[j].movedist[k] * 1000 / brick[j].movetime[l];
+							if (brick[j].movedir[l]==2) // right
+								movexv=brick[j].movedist[k] * 1000 / brick[j].movetime[l];
+							if (brick[j].movedir[l]==3) // down
+								moveyv=brick[j].movedist[k] * 1000 / brick[j].movetime[l];
+							if (brick[j].movedir[l]==4) // left
+								movexv=-brick[j].movedist[k] * 1000 / brick[j].movetime[l];
+							} // if movetime>0
+						} // if moving brick
+					
+					if (k==RIGHT) {ball[i].xv=ABS(ball[i].xv) + 40*movexv; ball[i].x=brick[j].x+brick[j].wid+BALLWID*50 + 2*movexv;}
+					if (k==LEFT) {ball[i].xv=-ABS(ball[i].xv) + 40*movexv; ball[i].x=brick[j].x-BALLWID*50 + 2*movexv;}
+					if (k==BOTTOM) {ball[i].yv=ABS(ball[i].yv) + 40*moveyv; ball[i].y=brick[j].y+brick[j].ht+BALLHT*50 + 2*moveyv;}
+					if (k==TOP) {ball[i].yv=-ABS(ball[i].yv) + 40*moveyv; ball[i].y=brick[j].y-BALLHT*50 + 2*moveyv;}
+					l=delta;
+					} // not a laser
+				if (!brick[j].flashtime	&& (brick[j].hits>0 || ball[i].type==4)) { // non-gold brick or you have a purple ball
+					brick[j].hits--;
+					if (brick[j].hits<=0 ||	ball[i].type>=3) { // kill brick (instant kill with superballs)
+						// drop powerup!
+						if (numbricks!=1 && !(rand()%POWERUPCHANCE)) NewPowerup(brick[j].x+brick[j].wid/2,brick[j].y+brick[j].ht/2);
+						if (mult<100 &&	mult+balls>=100	&& soundinit) sndMult100.Play();
+						if (mult<500 &&	mult+balls>=500	&& soundinit) sndMult500.Play();
+						if (mult<1000 && mult+balls>=1000 && soundinit)	sndMult1000.Play();
+						if (mult<1500 && mult+balls>=1500 && soundinit)	sndMult1500.Play();
+						if (mult<2000 && mult+balls>=2000 && soundinit)	sndMult2000.Play();
+						mult+=balls; // bigger mult with more balls
+
+						int	_left,_top,_wid,_ht;
+						_left=brick[j].x/100; _top=brick[j].y/100; _wid=brick[j].wid/100; _ht=brick[j].ht/100;
+						memmove(&brick[j],&brick[j+1],sizeof(_brick)*(bricks-j-1));
+						bricks--; j--;
+						RedrawRect(_left,_top,_wid,_ht);//needredraw=true;
+						if (soundinit) {sndKillBlock.Stop(); sndKillBlock.Play();}
+						}
+					else {
+						// flash colour
+						brick[j].flashtime=150;	RedrawBrick(j);//needredraw=true;
+						if (soundinit) {sndTinkBlock.Stop(); sndTinkBlock.Play();}
+						}
+					timesincelasthit=0;
+					} // if hits!=0
+				else // it must be a gold brick, or it is a laser
+					if (soundinit && ball[i].type!=3) {sndTinkBlock.Stop();	sndTinkBlock.Play();}
+				} // if myinside
+				// j=0 to bricks
+			if (hits==2	&& ball[i].type!=3)	{ // check the bounce, it is weird (unless laser)
+				k=WhichSide(ball[i].x,ball[i].y,tx,ty,bx,by);
+				if (k==k1 || k==k2)	{ // acceptable?
+					if (k==RIGHT) {ball[i].xv=ABS(oxv); ball[i].yv=oyv;} //ball[i].x=bx+BALLWID*50; ball[i].y=oy;}
+					if (k==LEFT) {ball[i].xv=-ABS(oxv); ball[i].yv=oyv;} //ball[i].x=tx-BALLWID*50; ball[i].y=oy;}
+					if (k==BOTTOM) {ball[i].yv=ABS(oyv); ball[i].xv=oxv;}// ball[i].y=by+BALLHT*50; ball[i].x=ox;}
+					if (k==TOP)	{ball[i].yv=-ABS(oyv); ball[i].xv=oxv;} //ball[i].y=ty+BALLHT*50; ball[i].x=ox;}
+					}
+				l=delta;
+				}
+
+			if (ball[i].active==5) ball[i].active=1; // it was just caught this frame
+
+			// clip offscreen
+			// outside border 19,44,620,480 (things must be inside, not on this line)
+			if (ball[i].x<2000+BALLWID*50) {ball[i].x=2000+BALLWID*50; ball[i].xv=-ball[i].xv; l=delta;
+				if (soundinit) {sndBounce.Stop(); sndBounce.Play();}}
+			if (ball[i].x>62000-BALLWID*50)	{ball[i].x=62000-BALLWID*50; ball[i].xv=-ball[i].xv; l=delta;
+				if (soundinit) {sndBounce.Stop(); sndBounce.Play();}}
+			if (ball[i].y<4500+BALLHT*50) {ball[i].y=4500+BALLHT*50; ball[i].yv=-ball[i].yv; l=delta;
+				if (soundinit) {sndBounce.Stop(); sndBounce.Play();}}
+
+			// saved by the protection
+			if (protection && ball[i].y>48000-BALLHT*50	&& (!caught	|| caughtball!=i)) {
+				protection = false;
+				ball[i].yv=-ABS(ball[i].yv);
+				ball[i].y=48000-BALLHT*50;
+				if (soundinit) {sndBounce.Stop(); sndBounce.Play();}
+				timesincelasthit=0;
+				}
+
+			// lost a ball
+			if (ball[i].y>48000+BALLHT*50 && (!caught || caughtball!=i)) {
+				memmove(&ball[i],&ball[i+1],(balls-i-1)*sizeof(_ball));
+				balls--;
+				i--;
+				break; }
+			} // for (l->delta
+			} // for (i->balls
+
+		// If it hasnt touched the paddle for 30 seconds, make the balls go laser.
+		j=timesincelasthit;
+		timesincelasthit+=deltams;
+		if (timesincelasthit>30000)	{ // 30 secs
+			for	(i=0;i<balls;i++) ball[i].type=3; // laser
+			timesincelasthit=0;
+			if (soundinit) sndCoolBall.Play();
+			}
+
+		if (timesincelasthit>10000 &&	// after 10 seconds and...
+			timesincelasthit%2000 <	j%2000)	// ...every 2 seconds
+			for	(k=0;k<balls;k++) {
+			speed=(long)sqrt(SQR(ball[k].xv/100)+SQR(ball[k].yv/100));
+			angle=long(atan2(ball[k].yv,ball[k].xv)*100);
+			angle+=rand()%100-50;
+			ball[k].xv=long(cos(angle/100.0)*speed*100);
+			ball[k].yv=long(sin(angle/100.0)*speed*100);
+			}
+
+		if (balls==0) {
+			if (curballs>0)	{
+			if (soundinit) sndLoseBall.Play();
+			NoPowerups();
+			NewBall(); curballs--;}	// lost a ball
+			else {
+			// go to high scores now!
+			score+=10*mult*mult;
+			mult=0;
+			if (score>=highscore[HIGHSCORES-1].score) {
+				if (soundinit) sndNewHighscore.Play();
+				whatScreen=SCREEN_TYPENAME;	// made it into the high scores!
+				curnametext[0]=0; curnameoff=0;	// start the name off
+				}
+			else whatScreen=SCREEN_HIGHSCORE;
+			load_proper_back();
+			}
+			}
+		*/
+	}
+/*
+	else
+	if (whatScreen==SCREEN_TITLE) {
+		}
+	else
+	if (whatScreen==SCREEN_HIGHSCORE) {	// high scores
+		}
+	else
+	if (whatScreen==SCREEN_TYPENAME) { // high scores
+	if (!inMenu)
+		for	(i=0;i<256 && keybuffer[i];i++)	{
+		if (isprint(keybuffer[i]) && curnameoff<19)	{
+			if (GetKeyState(KEYCODE_SHIFT)&0x80)
+			curnametext[curnameoff]=shiftup(keybuffer[i]);
+			else	curnametext[curnameoff]=tolower(keybuffer[i]);
+			curnameoff++;
+			curnametext[curnameoff]=0;
+			}
+		if ((keybuffer[i]==KEYCODE_BACKSPACE || KEYCODE_DELETE) && curnameoff>0) {
+			curnameoff--;
+			curnametext[curnameoff]=0;
+			}
+		if (keybuffer[i]==KEYCODE_ENTER || KEYCODE_KP_ENTER) {
+			add_high_score(curnametext,episode[curepisode].name,score,curlevel);
+			save_high_scores();
+			whatScreen=SCREEN_HIGHSCORE;
+			load_proper_back();
+			}
+		} // for i...
+	} // whatScreen==SCREEN_typename
+	*/
 }
 
-void game_draw(uint32_t *framebuffer) {
-	memcpy(framebuffer, state.background->data, SCREENWIDTH * SCREENHEIGHT * 4);
-}
+void game_draw(uint32_t* framebuffer) {
+	char	text[200];
 
-// Game-specific functions:
+	if (state.whatScreen != SCREEN_GAME) { // Non-game screens need their background drawn for them.
+		if (state.background && state.background->data) {
+			memcpy(framebuffer, state.background->data, SCREENWIDTH * SCREENHEIGHT * 4);
+		}
+	}
+
+	if (state.whatScreen == SCREEN_GAME) {
+		// TODO think about how draw_game_screen might want to go to another buffer? Only redrawn intermittently, but the dynamic stuff eg ball/powerups/stats is drawn each frame?
+		draw_game_screen(framebuffer);
+
+		// Display stats:
+		sprintf(text, "Balls:%-3dLevel:%-3dMult:%-5dScore:%d", state.curBalls, state.curLevel, state.mult, state.score);
+		draw_text(framebuffer, text, state.font16, 21, 24);
+
+		if (state.hasProtection) {
+			uint32_t colour = rgb(204, 153, 0);
+			draw_rect(framebuffer, 20, 480-1, 600, 1, colour); // Protection bar.
+		}
+
+		// Powerups:
+		for	(int i=0; i<state.powerups; i++) {
+			if (state.powerup[i].type != PWR_SPECIAL_PADDLE) {
+				draw_subimage(
+					framebuffer, state.sprites,
+					state.powerup[i].x/100-15, state.powerup[i].y/100-5,
+					state.powerup[i].type*30, 22,
+					30,10);
+			} else {
+				draw_paddle(framebuffer, state.powerup[i].x/100, state.powerup[i].y/100, 50);
+			}
+		}
+
+		// Balls:
+		for	(int i=0; i<state.balls; i++) {
+			draw_subimage(
+				framebuffer, state.sprites,
+				state.ball[i].x/100-6, state.ball[i].y/100-6,
+				state.ball[i].type*12, 0,
+				12, 12);
+		}
+
+		// Paddle:
+		// Smallest=5000, shrinks at>=11000, has split at >=10000.
+		if (state.padwidth >= 10000) { // Draw with a crack, hinting that if it grows more it'll split in half.
+			int x=state.padx/100;
+			int y=state.pady/100;
+			int wid=state.padwidth/100;
+			draw_paddle(framebuffer, x-wid/4-1, y, wid/2);
+			draw_paddle(framebuffer, x+wid/4+1, y, wid/2+1);
+		} else {
+			draw_paddle(framebuffer, state.padx/100, state.pady/100, state.padwidth/100);
+		}
+	} else if (state.whatScreen==SCREEN_HIGHSCORE) {
+		for	(int i=0; i<HIGHSCORES; i++) {
+			if (state.highscore[i].level != -1) {
+				sprintf(text, "%2d %-20s%-15sLevel %-2d Score:%d", i+1, state.highscore[i].name, state.highscore[i].episodename, state.highscore[i].level, state.highscore[i].score);
+			} else {
+				sprintf(text, "%2d %-20s%-15sWon!     Score:%d", i+1, state.highscore[i].name, state.highscore[i].episodename, state.highscore[i].score);
+			}
+			draw_text(framebuffer, text, state.font16, 0, 140+i*16);
+		}
+	} else if (state.whatScreen==SCREEN_TYPENAME) {
+		draw_text(framebuffer, "Congrats! You're in the high scores!\nType in your name:", state.font16, 320-29*4, 120);
+		bool isBlink = (((int)(state.runtime * 2.0)) & 0x1) != 0;
+		sprintf(text, "%s%c", state.curnametext, isBlink ? '_' : ' ');
+		draw_text(framebuffer, text, state.font16, 100, 230);
+	} else if (state.whatScreen==SCREEN_ABOUT) {
+		draw_text(framebuffer, VERSIONNAME, state.font8, 0, 472);
+	}
+
+	// Menu:
+	if (state.inMenu) {
+		black_fade(framebuffer);
+
+		draw_text(framebuffer, ">", state.font16blue, 260, 200+state.curopt*20);
+		switch (state.curmenu) {
+		case MENU_MAIN:
+			draw_text(framebuffer, "BrickWarrior", state.font16blue, 240, 170);
+			draw_text(framebuffer, "Game", state.font16blue, 280, 200);
+			draw_text(framebuffer, "High scores", state.font16blue, 280, 220);
+			draw_text(framebuffer, "About/Help", state.font16blue, 280, 240);
+			draw_text(framebuffer, "Quit", state.font16blue, 280, 260);
+			break;
+		case MENU_PLAYERS:
+			draw_text(framebuffer, "How many players?", state.font16blue, 240, 170);
+			draw_text(framebuffer, "One player", state.font16blue, 280, 200);
+			draw_text(framebuffer, "Two players", state.font16blue, 280, 220);
+			break;
+		case MENU_GAME:
+			draw_text(framebuffer, "What do you want to do?", state.font16blue, 240, 170);
+			draw_text(framebuffer, "Play a new game", state.font16blue, 280, 200);
+			draw_text(framebuffer, "Load a game", state.font16blue, 280, 220);
+			if (state.whatScreen==SCREEN_GAME) {
+				draw_text(framebuffer, "Save this game", state.font16blue, 280, 240);
+			} else {
+				draw_text(framebuffer, "Cannot save", state.font16blue, 280, 240);
+			}
+			break;
+		case MENU_LOAD:
+			draw_text(framebuffer, "Load game", state.font16blue, 240, 170);
+			for	(int i=0; i<SAVEGAMES; i++) {
+				get_save_title(i+1, text);
+				draw_text(framebuffer, text, state.font16blue, 280, 200+i*20);
+			}
+			break;
+		case MENU_SAVE:
+			draw_text(framebuffer, "Save game", state.font16blue, 240, 170);
+			for	(int i=0; i<SAVEGAMES; i++) {
+				get_save_title(i+1, text);
+				draw_text(framebuffer, text, state.font16blue, 280, 200+i*20);
+			}
+			break;
+		case MENU_EPISODE:
+			draw_text(framebuffer, "Choose an episode:", state.font16blue, 240, 170);
+			for	(int i=0; i<state.episodes; i++) {
+				draw_text(framebuffer, state.episode[i].name, state.font16blue, 280, 200+i*20);
+			}
+			break;
+		}
+	} // if inMenu
+}
 
 void set_pause(bool on) {
 	if (on && !state.inMenu) {
 		state.curmenu = MENU_MAIN;
 		state.curopt = 0;
-		state.menuopts = 5;
+		state.menuopts = 4;
 		state.inMenu = 1;
 	}
-}
-
-// Converts 0-255 rgb into an 0xAABBGGRR colour.
-// Clamps it for you.
-uint32_t rgb(int r, int g, int b) {
-	#define MAX(a, b) ((a) > (b) ? (a) : (b))
-	#define MIN(a, b) ((a) < (b) ? (a) : (b))
-	#define CLAMP(a) (MAX(MIN(a, 255), 0))
-	return 0xff000000 +
-		(((uint32_t)CLAMP(b)) << 16) +
-		(((uint32_t)CLAMP(g)) << 8) +
-		((uint32_t)CLAMP(r));
 }
 
 // Loads a level in LVL binary format.
@@ -535,7 +1281,7 @@ void clip_powerup(int index) {
 	if (state.powerup[index].x>60500) { state.powerup[index].x=60500; }
 }
 
-int	choose_powerup() {
+PowerupType	choose_powerup() {
 	// Count all the existing bubbles and triples:
 	int numbubbles = 0;
 	int numtriples = 0;
@@ -547,15 +1293,14 @@ int	choose_powerup() {
 	}
 
 	while (true) { // Loop until the powerup is ok:
-		int i = rand() % PWR_LAST;
+		PowerupType t = rand() % PWR_LAST_VALID;
 		bool keepit = true;
 		if (state.ball[0].type<2) { // All powerups are cool if you've got a bubble or above
-			if (i==PWR_TRIPLE && (numbubbles ||	numcatches)) keepit=false;
-			if ((i==PWR_BUBBLE || i==PWR_BLACKBUBBLE ||
-				i==PWR_CATCH) && (numtriples ||	state.balls>1)) keepit=false;
+			if (t==PWR_TRIPLE && (numbubbles ||	numcatches)) keepit=false;
+			if ((t==PWR_BUBBLE || t==PWR_BLACKBUBBLE || t==PWR_CATCH) && (numtriples ||	state.balls>1)) keepit=false;
 		}
 		if (keepit) {
-			return i;
+			return t;
 		}
 	}
 }
@@ -704,8 +1449,9 @@ void add_high_score(char *name, char *episodename, int score, int level) {
 	state.highscore[i].level=level;
 }
 
+// Only drop the catch if you have less than a bubble ball.
 void drop_catch(bool force) {
-	if (state.hasCatch && (state.ball[0].type<2 || force)) { // Only drop the catch if you have less than a bubble ball.
+	if (state.hasCatch && (state.ball[0].type<2 || force)) {
 		state.hasCatch = false;
 		state.isCaught = false;
 		if (state.powerups >= MAXPOWERUPS) { return; }
@@ -823,14 +1569,15 @@ void draw_subimage(uint32_t *framebuffer, Image* image, int dstLeft, int dstTop,
 
 void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y) {
 	if (!image) { return; }
-	int charSize = image->width / 16;
+	int charWidth = image->width / 16;
+	int charHeight = image->height / 6;
 	int curX = x;
 	int curY = y;
 	int len = strlen(text);
 	for (int i=0; i<len; i++) {
 		char c = text[i];
-		if (c=="\n") {
-			curY += charSize;
+		if (c == '\n') {
+			curY += charHeight;
 			curX = x;
 		} else {
 			if (32 <= c && c <= 127) { // Only printable chars.
@@ -838,12 +1585,11 @@ void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y) {
 				draw_subimage(
 					framebuffer, image,
 					curX, curY,
-					(index % 16) * charSize,
-					index / 16 * charSize,
-					charSize, charSize);
-				}
+					(index % 16) * charWidth,
+					(index / 16) * charHeight,
+					charWidth, charHeight);
 			}
-			curX += charSize;
+			curX += charWidth;
 		}
 	}
 }
@@ -880,12 +1626,19 @@ void redraw_rect(uint32_t *framebuffer, int left, int top, int wid, int ht, int 
 void black_fade(uint32_t *framebuffer) {
 	uint32_t black = 0xff000000;
 	for (int y=0; y<SCREENHEIGHT; y++) {
-		for (int x=(y&1); x<SCREENWIDTH; x+=2) {
-			framebuffer[y*SCREENWIDTH + x] = black;
+		if (y%3) {
+			memset(framebuffer+y*SCREENWIDTH, 0, SCREENWIDTH * 4); // All black.
+		} else {
+			for (int x=0; x<SCREENWIDTH; x++) {
+				if (x%3) {
+					framebuffer[y*SCREENWIDTH + x] = black;
+				}
+			}
 		}
 	}
 }
 
+// x/y is the center of the paddle.
 void draw_paddle(uint32_t *framebuffer, int x, int y, int width) {
 	#define	PADEND 5
 	int killedSrcXOffset = state.isKilled ? 200 : 0;
@@ -932,33 +1685,34 @@ void load_proper_back() {
 }
 
 void menu_press_enter() {
-	if (state.curmenu==MENU_MAIN)	{ // changed to ignore # of players
+	if (state.curmenu==MENU_MAIN) { // changed to ignore # of players
 		if (state.curopt==0) {
 			state.curmenu=MENU_GAME;
 			state.menuopts=3;
 			state.curopt=0;
-		}
-		if (state.curopt==1) {
-			state.curmenu=MENU_MUSIC; state.curopt=0; state.menuopts=4;
-		}
-		if (state.curopt==2) {state.inMenu=0; state.whatScreen=SCREEN_HIGHSCORE; load_proper_back();} // high score screen
-		if (state.curopt==3) {
-			state.inMenu=0; 
+		} else if (state.curopt==1) {
+			state.inMenu=false; state.whatScreen=SCREEN_HIGHSCORE; load_proper_back();
+		} else if (state.curopt==2) {
+			state.inMenu=false; 
 			// sndIntro.Stop(); sndIntro.Play(); TODO sound
 			state.whatScreen=SCREEN_ABOUT; load_proper_back();
+		} else if (state.curopt==3) {
+			state.hasQuit=true;
 		}
-		if (state.curopt==4) state.hasQuit=true;
-	} else if (state.curmenu==MENU_PLAYERS) { // how many players (not actually used).
-		if (state.curopt==0) {state.players=1; }
-		if (state.curopt==1) {state.players=2; }
+	} else if (state.curmenu==MENU_PLAYERS) { // how many players (not actually used). TODO remove
+		if (state.curopt==0) { state.players=1; }
+		if (state.curopt==1) { state.players=2; }
 		state.menuopts=state.episodes;
 		state.curmenu=MENU_EPISODE;
 		state.curopt=0;
 	} else if (state.curmenu==MENU_GAME) { // game
-		if (state.curopt==0) {state.curmenu=MENU_EPISODE; state.curopt=0; state.menuopts=state.episodes;} // play
-		if (state.curopt==1) {state.curmenu=MENU_LOAD; state.curopt=0; state.menuopts=SAVEGAMES;}; // load
-		if (state.curopt==2 && state.whatScreen==SCREEN_GAME)
-			{state.curmenu=MENU_SAVE; state.curopt=0; state.menuopts=SAVEGAMES;};	// save
+		if (state.curopt==0) { // Play.
+			state.curmenu=MENU_EPISODE; state.curopt=0; state.menuopts=state.episodes;
+		} else if (state.curopt==1) { // Load.
+			state.curmenu=MENU_LOAD; state.curopt=0; state.menuopts=SAVEGAMES;
+		} else if (state.curopt==2 && state.whatScreen==SCREEN_GAME) { // Save.
+			state.curmenu=MENU_SAVE; state.curopt=0; state.menuopts=SAVEGAMES;
+		}
 	} else if (state.curmenu==MENU_EPISODE) { // episode chooser
 		state.curEpisode=state.curopt; state.curBalls=3; state.curLevel=1; state.mult=0; state.score=0;
 		no_powerups();
@@ -966,18 +1720,27 @@ void menu_press_enter() {
 		load_cur_level();
 		state.whatScreen=SCREEN_GAME;
 		load_proper_back();
-		state.inMenu=0; // play!
+		state.inMenu=false; // play!
 	} else if (state.curmenu==MENU_LOAD) { // load game
 		// if (DoesSaveExist(curopt+1)) { // TODO loading.
 		// 	LoadGame(curopt+1);
 		// 	state.whatScreen=SCREEN_GAME;
 		// 	load_proper_back();
-		// 	state.inMenu=0; // play it!
+		// 	state.inMenu=false; // play it!
 		// }
-	} else if (state.curmenu==MENU_SAVE) { // save game
+	} else if (state.curmenu==MENU_SAVE) {
 		if (state.whatScreen==SCREEN_GAME) {
 			// SaveGame(curopt+1); TODO save
-			state.inMenu=0;
+			state.inMenu=false;
 		}
 	}
 } // menu_press_enter
+
+void get_save_title(int slot, char* title) {
+	// TODO
+	title[0]='T';
+	title[1]='O';
+	title[2]='D';
+	title[3]='O';
+	title[4]=0;
+}

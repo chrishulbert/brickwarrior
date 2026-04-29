@@ -1,4 +1,7 @@
 // This is for random helpers.
+// The intention is for these helpers to be roughly game-independent.
+
+#include <stdint.h>
 
 // Make strncasecmp available on all platforms.
 #ifdef _WIN32
@@ -25,4 +28,31 @@ typedef enum {
     SIDE_LEFT,
     SIDE_TOP,
 } Side;
-Side WhichSide(long x,long y,long x1,long y1,long x2,long y2);
+Side which_side(long x,long y,long x1,long y1,long x2,long y2);
+
+uint32_t rgb(int r, int g, int b);
+
+// GLFW-compatible keycodes as per Sokol.
+typedef enum {
+    KEYCODE_F1        = 290,
+    KEYCODE_F2        = 291,
+    KEYCODE_F3        = 292,
+    KEYCODE_F4        = 293,
+    KEYCODE_F5        = 294,
+    KEYCODE_F6        = 295,
+    KEYCODE_F7        = 296,
+    KEYCODE_F8        = 297,
+    KEYCODE_F9        = 298,
+    KEYCODE_F10       = 299,
+    KEYCODE_F11       = 300,
+    KEYCODE_F12       = 301,
+    KEYCODE_ESCAPE    = 256,
+    KEYCODE_ENTER     = 257,
+    KEYCODE_KP_ENTER  = 335,
+    KEYCODE_UP        = 265,
+    KEYCODE_DOWN      = 264,
+    KEYCODE_LEFT      = 263,
+    KEYCODE_RIGHT     = 262,
+    KEYCODE_BACKSPACE = 259,
+    KEYCODE_DELETE    = 261,
+} Keycode;
