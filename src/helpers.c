@@ -25,3 +25,7 @@ uint32_t rgb(int r, int g, int b) {
 		(((uint32_t)CLAMP(g)) << 8) +
 		((uint32_t)CLAMP(r));
 }
+
+int maxi(int a, int b) {
+    return a > b ? a : b;
+}

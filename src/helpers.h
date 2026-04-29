@@ -56,3 +56,5 @@ typedef enum {
     KEYCODE_BACKSPACE = 259,
     KEYCODE_DELETE    = 261,
 } Keycode;
+
+int maxi(int a, int b);

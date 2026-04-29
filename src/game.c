@@ -604,10 +604,10 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 							if (state.balls<MAXBALLS) {
 								state.ball[state.balls].x=state.ball[k].x;
 								state.ball[state.balls].y=state.ball[k].y;
-								float speed = sqrt(SQR(state.ball[k].xv) + SQR(state.ball[k].yv));
+								float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
 								float angle = atan2(state.ball[k].yv, state.ball[k].xv) - 0.5;
-								state.ball[state.balls].xv=cos(angle)*speed;
-								state.ball[state.balls].yv=sin(angle)*speed;
+								state.ball[state.balls].xv=cos(angle)*speed*100;
+								state.ball[state.balls].yv=sin(angle)*speed*100;
 								state.ball[state.balls].active=state.ball[k].active;
 								state.ball[state.balls].type=newballtypea;
 								state.balls++;
@@ -616,10 +616,10 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 							if (state.balls<MAXBALLS)	{
 								state.ball[state.balls].x=state.ball[k].x;
 								state.ball[state.balls].y=state.ball[k].y;
-								float speed = sqrt(SQR(state.ball[k].xv) + SQR(state.ball[k].yv));
+								float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
 								float angle = atan2(state.ball[k].yv, state.ball[k].xv) - 0.5;
-								state.ball[state.balls].xv=cos(angle)*speed;
-								state.ball[state.balls].yv=sin(angle)*speed;
+								state.ball[state.balls].xv=cos(angle)*speed*100;
+								state.ball[state.balls].yv=sin(angle)*speed*100;
 								state.ball[state.balls].active=state.ball[k].active;
 								state.ball[state.balls].type=newballtypeb;
 								state.balls++;
