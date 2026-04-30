@@ -31,7 +31,10 @@ macos: sokol stb
 macos-app: macos
 	rm -rf BrickWarrior.app
 	mkdir -p BrickWarrior.app/Contents/MacOS
-	mkdir -p BrickWarrior.app/Contents/Resources
+	mkdir -p BrickWarrior.app/Contents/Resources/assets
+	cp -R assets/img BrickWarrior.app/Contents/Resources/assets
+	cp -R assets/levels BrickWarrior.app/Contents/Resources/assets
+	cp -R assets/sound BrickWarrior.app/Contents/Resources/assets
 	cp brickwarrior BrickWarrior.app/Contents/MacOS
 	cp assets/macos/Info.plist BrickWarrior.app/Contents
 	cp assets/macos/AppIcon.icns BrickWarrior.app/Contents/Resources
