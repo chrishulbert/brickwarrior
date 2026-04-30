@@ -83,8 +83,8 @@ void init(void) {
         }
     };
 
-    // macOS helper to snap the CWD to the Resources folder so files can load.
     #ifdef __APPLE__
+        // macOS helper to snap the CWD to the Resources folder so files can load.
         CFBundleRef mainBundle = CFBundleGetMainBundle();
         CFURLRef resourcesURL = CFBundleCopyResourcesDirectoryURL(mainBundle);
         char path[PATH_MAX];
@@ -93,6 +93,25 @@ void init(void) {
             // Path is the current folder if run outside of a .app.
         }
         CFRelease(resourcesURL);
+
+        // Add a menu for macOS so quit works:
+        // https://github.com/floooh/sokol/pull/631/changes
+        NSMenuItem* quit_menu_item = [[NSMenuItem alloc]
+            initWithTitle:@"Quit"
+            action:@selector(terminate:)
+            keyEquivalent:@"q"];
+        
+        NSMenu* app_menu = [[NSMenu alloc] init];
+        [app_menu addItem:hide_menu_item];
+        [app_menu addItem:[NSMenuItem separatorItem]];
+        [app_menu addItem:quit_menu_item];
+
+        NSMenuItem* app_menu_item = [[NSMenuItem alloc] init];
+        app_menu_item.submenu = app_menu;
+        
+        NSMenu* menu_bar = [[NSMenu alloc] init];
+        NSApp.mainMenu = menu_bar;
+        [menu_bar addItem:app_menu_item];
     #endif
 
     // Let the game logic have a chance to init:
