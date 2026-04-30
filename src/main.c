@@ -202,8 +202,8 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         .frame_cb = frame,
         .cleanup_cb = cleanup,
         .event_cb = event,
-        .width = SCREENWIDTH,
-        .height = SCREENHEIGHT,
+        .width = SCREENWIDTH*2,
+        .height = SCREENHEIGHT*2,
         .window_title = TITLE,
         .swap_interval = 1, // Enable VSync.
         .logger.func = slog_func,

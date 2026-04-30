@@ -289,30 +289,6 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 	// Keys:
 	for	(int i=0; keys[i]; i++) {
 		switch (keys[i]) {
-		case KEYCODE_F10: // Skip level cheat.
-			state.curLevel++;
-			load_cur_level();
-			break;
-		case KEYCODE_F11: // Slow cheat.
-			for	(int k=0; k<state.balls; k++) {
-				float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
-				float angle = atan2(state.ball[k].yv, state.ball[k].xv);
-				speed -= 50; // slow it!
-				if (speed<0) { speed=0; }
-				state.ball[k].xv = cos(angle)*speed*100;
-				state.ball[k].yv = sin(angle)*speed*100;
-			}
-			break;
-		case KEYCODE_F12: // Speedup cheat.
-			for	(int k=0; k<state.balls; k++) {
-				float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
-				float angle = atan2(state.ball[k].yv, state.ball[k].xv);
-				speed += 50; // increase it!
-				if (speed>1000)	{ speed=1000; }
-				state.ball[k].xv = cos(angle)*speed*100;
-				state.ball[k].yv = sin(angle)*speed*100;
-			}
-			break;
 		case KEYCODE_F1: // New game / select episode.
 			state.inMenu=true; state.curmenu=MENU_EPISODE; state.curopt=0; state.menuopts=state.episodes;
 			break;
@@ -323,6 +299,22 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 			break;
 		case KEYCODE_F3: // Load.
 			state.inMenu=true; state.curmenu=MENU_LOAD; state.curopt=0; state.menuopts=SAVEGAMES;
+			break;
+		case KEYCODE_F4: // Skip level cheat.
+			state.curLevel++;
+			load_cur_level();
+			break;
+		case KEYCODE_F5: // Slow cheat.
+		case KEYCODE_F6: // Speedup cheat.
+			for	(int k=0; k<state.balls; k++) {
+				float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
+				float angle = atan2(state.ball[k].yv, state.ball[k].xv);
+				if (angle==0) { angle += randf(-0.5, 0.5); } // So it doesn't go sideways once stopped.
+				speed += keys[i]==KEYCODE_F5 ? -50 : 50;
+				if (speed<1) { speed=1; }
+				state.ball[k].xv = cos(angle)*speed*100;
+				state.ball[k].yv = sin(angle)*speed*100;
+			}
 			break;
 		case KEYCODE_ESCAPE:
 			if (state.inMenu) { // Go up a menu level.
