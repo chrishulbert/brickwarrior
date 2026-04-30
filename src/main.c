@@ -1,23 +1,14 @@
 // Main Sokol entry file.
 // The intention re separation of responsibilities is for this to be game-agnostic, with no game-specific code here.
 
-// Auto-select thee platform graphics backend:
-#if defined(_WIN32)
-    #define SOKOL_D3D11
-#elif defined(__APPLE__)
-    #define SOKOL_METAL
-#else // Linux:
-    #define SOKOL_GLCORE33
-#endif
-
 #define SOKOL_IMPL // So the implementation is compiled in.
-
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
 #include "shaders/basic.h"
 
+#include "main.h"
 #include "game.h"
 
 #define QUEUES_LEN 20 // Length of the queue arrays. Actual queueable events are this-1 because it's null terminated.
@@ -33,6 +24,7 @@ static struct {
     sg_sampler framebuffer_sampler;
     int keys[QUEUES_LEN]; // Keys like F1, Escape (also includes characters, but don't use it for that).
     int chars[QUEUES_LEN]; // For text input, as it takes shift into account.
+    MouseEvent mouseEvents[QUEUES_LEN];
 } state;
 
 // Called once at the start:
@@ -98,9 +90,10 @@ void init(void) {
 // Called every frame:
 void frame(void) {
     // Update the game:
-    game_update(state.framebuffer, (float)sapp_frame_duration(), state.keys, state.chars);
+    game_update(sapp_frame_duration(), state.keys, state.chars, state.mouseEvents);
     state.keys[0] = 0; // Empty the event queues.
     state.chars[0] = 0;
+    state.mouseEvents[0].isActual = false;
     if (game_should_quit()) {
         sapp_request_quit();
     }
@@ -174,6 +167,21 @@ void event(const sapp_event* ev) {
                 }
             }
             break;
+        case SAPP_EVENTTYPE_MOUSE_DOWN:
+        case SAPP_EVENTTYPE_MOUSE_MOVE:
+            for (int i=0; i<QUEUES_LEN-1; i++) {
+                if (!state.mouseEvents[i].isActual) {
+                    state.mouseEvents[i].isActual = true;
+                    state.mouseEvents[i].isClick = ev->type == SAPP_EVENTTYPE_MOUSE_DOWN;
+                    state.mouseEvents[i].button = ev->mouse_button;
+                    state.mouseEvents[i].x = ev->mouse_x;
+                    state.mouseEvents[i].y = ev->mouse_y;
+                    state.mouseEvents[i].dx = ev->mouse_dx;
+                    state.mouseEvents[i].dy = ev->mouse_dy;
+                    state.mouseEvents[i+1].isActual = false;
+                }
+            }
+            break;
         default:
             break;
     }
@@ -200,4 +208,14 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         .swap_interval = 1, // Enable VSync.
         .logger.func = slog_func,
     };
+}
+
+// Helpers for the game to call that abstract away the graphics library:
+
+void lock_mouse(bool lock) {
+    sapp_lock_mouse(lock);
+}
+
+bool is_mouse_locked() {
+    return sapp_mouse_locked();
 }

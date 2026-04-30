@@ -21,16 +21,16 @@ typedef union {
     uint8_t  bytes[2];
 } Swap16;
 
-uint16_t be_to_native_16(uint16_t be) {
+uint16_t le_to_native_16(uint16_t le) {
     #if PLATFORM_IS_LITTLE_ENDIAN
+        return le;
+    #else
         Swap16 s;
         s.value = be;
         uint8_t temp = s.bytes[0];
         s.bytes[0] = s.bytes[1];
         s.bytes[1] = temp;
         return s.value;
-    #else // This platform is BE.
-        return be;
     #endif
 }
 
@@ -39,8 +39,10 @@ typedef union {
     uint8_t  bytes[4];
 } Swap32;
 
-uint32_t be_to_native_32(uint32_t be) {
+uint32_t le_to_native_32(uint32_t le) {
     #if PLATFORM_IS_LITTLE_ENDIAN
+        return le;
+    #else
         Swap32 s;
         s.value = be;
         // Swap outer bytes:
@@ -52,8 +54,6 @@ uint32_t be_to_native_32(uint32_t be) {
         s.bytes[1] = s.bytes[2];
         s.bytes[2] = temp;
         return s.value;
-    #else // This platform is BE.
-        return be;
     #endif
 }
 
@@ -64,15 +64,15 @@ unsigned char fread_u8(FILE* fh) {
 }
 
 int16_t fread_i16(FILE* fh) {
-	uint16_t be = 0;
-	fread(&be, 2, 1, fh);
-    uint16_t native = be_to_native_16(be);
+	uint16_t le = 0;
+	fread(&le, 2, 1, fh);
+    uint16_t native = le_to_native_16(le);
     return (int16_t)native;
 }
 
 int32_t fread_i32(FILE* fh) {
-	uint32_t be = 0;
-	fread(&be, 2, 1, fh);
-    uint32_t native = be_to_native_32(be);
+	uint32_t le = 0;
+	fread(&le, 4, 1, fh);
+    uint32_t native = le_to_native_32(le);
     return (int32_t)native;
 }

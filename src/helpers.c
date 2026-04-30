@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "helpers.h"
 
 Side which_side(long x,long y,long x1,long y1,long x2,long y2) {
@@ -28,4 +30,12 @@ uint32_t rgb(int r, int g, int b) {
 
 int maxi(int a, int b) {
     return a > b ? a : b;
+}
+
+int mini(int a, int b) {
+    return a < b ? a : b;
+}
+
+float randf(float min, float max) {
+	return min + ((float)rand()) / ((float)RAND_MAX) * (max - min);
 }

@@ -130,6 +130,7 @@ static struct {
 
 	bool hasQuit;
 
+	uint32_t *gameFramebuffer; // This has the things that shouldn't change each frame: background, bricks, level name.
 	Image *sprites;
 	Image *font8;
 	Image *font16;
@@ -171,7 +172,6 @@ static struct {
 	// Menu:
 	int	menuopts, curopt, curmenu;
 	bool inMenu;
-	int mouseposx, mouseposy;
 	Screen whatScreen;
 
 	// Scoring:
@@ -187,6 +187,10 @@ static struct {
 } state;
 
 // Forward declarations:
+void add_high_score(char *name, char *episodename, int score, int level);
+void new_ball();
+void no_powerups();
+void new_powerup(int x, int y);
 void clip_powerup(int index);
 void drop_catch(bool force);
 PowerupType	choose_powerup();
@@ -201,7 +205,7 @@ void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y);
 void load_proper_back();
 void load_episodes(char *fn);
 void load_high_scores();
-void draw_game_screen(uint32_t *framebuffer);
+void draw_game_screen_if_needed(uint32_t *framebuffer);
 void draw_subimage(uint32_t *framebuffer, Image* image, int dstLeft, int dstTop, int srcLeft, int srcTop, int width, int height);
 void draw_paddle(uint32_t *framebuffer, int x, int y, int width);
 void black_fade(uint32_t *framebuffer);
@@ -209,6 +213,8 @@ void black_fade(uint32_t *framebuffer);
 // Sokol game lifecycle:
 
 void game_init() {
+	state.gameFramebuffer = malloc(SCREENWIDTH * SCREENHEIGHT * 4);
+
 	state.sprites = image_load("assets/img/sprites.png");
 	state.font8 = image_load("assets/img/font8.png");
 	state.font16 = image_load("assets/img/font16.png");
@@ -222,10 +228,6 @@ void game_init() {
 	state.curmenu=MENU_MAIN;
 	state.curopt=0; // Play!
 	state.menuopts=4;
-
-	// TODO what do we do re mouse?
-	state.mouseposx=320;
-	state.mouseposy=240;
 
 	state.runtime = 0;
 	srand(time(NULL));
@@ -268,6 +270,7 @@ bool game_should_quit() {
 }
 
 void game_deinit() {
+	free(state.gameFramebuffer);
 	image_free(state.sprites);
 	image_free(state.font8);
 	image_free(state.font16);
@@ -276,22 +279,12 @@ void game_deinit() {
 	save_high_scores();
 }
 
-void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
+void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents) {
 	state.runtime += duration; // Not affected by pause because we still want cursor to blink in menu.
 	if (state.inMenu) { duration=0; } // Paused!
+	if (!state.inMenu && state.whatScreen==SCREEN_GAME && !is_mouse_locked()) { duration=0; } // Don't move until the mouse locks.
 	if (duration > 0.05) { duration=0.05; }; // Minimum 20 fps (if it goes over it is probably something odd).
 	int deltams = duration * 1000; // For compatibility with the old ms code.
-
-	// int		i,j,k,l,ox,oy,delta,numbricks;
-	// long	speed,angle;
-	
-	if (state.inMenu) {
-		// TODO think about mouse?
-		// mouseposx += mousex;
-		// mouseposy += mousey;
-		// MYCLAMP(mouseposx,0,639);
-		// MYCLAMP(mouseposy,0,479);
-	}
 
 	// Keys:
 	for	(int i=0; keys[i]; i++) {
@@ -363,6 +356,7 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 				state.curopt=0;
 				state.menuopts=4;
 				state.inMenu=true;
+				lock_mouse(false);
 			}
 			break;
 		case KEYCODE_ENTER:
@@ -386,22 +380,40 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 		}
 	}
 
-	int pdeltax=0; // How far the paddle moved this frame.
-	int pdeltay=0;
-
 	if (state.whatScreen==SCREEN_GAME) {
+		int pdeltax=0; // How far the paddle moved this frame.
+		int pdeltay=0;
 		if (!state.inMenu) { // Only move paddle if not in the menu.
-			// outside border 19,44,620,480 (things must be inside not on this line)
-			// TODO change this to somehow work with sokol, capture the mouse?
-			/*
-			int i=padx;	padx+=mousex*100; MYCLAMP(padx,2000+padwidth/2,62000-padwidth/2);
-			pdeltax=padx-i;	// how far did it move?
-			i=pady;	pady+=mousey*100; MYCLAMP(pady,32000,48000);
-			if (!updown) pady=42000;
-			pdeltay=pady-i;	// how far up/down did it go?
-			if (mousebutton	&& caught) caught=false; // let it go
-			if (caught)	timesincelasthit=0;
-			*/
+			// Summarise the mouse events:
+			float dx=0;
+			float dy=0;
+			bool didClick=false;
+			for (int i=0; mouseEvents[i].isActual; i++) {
+				dx += mouseEvents[i].dx * 0.15;
+				dy += mouseEvents[i].dy * 0.15;
+				if (mouseEvents[i].isClick) {
+					didClick = true;
+				}
+			}
+			// Only move the paddle if the mouse is locked in:
+			if (is_mouse_locked()) {
+				int oldpadx = state.padx;
+				int oldpady = state.pady;
+				state.padx += dx*100;
+				state.pady += dy*100;
+				if (!state.hasUpdown) { state.pady=42000; }
+				MYCLAMP(state.padx, 2000+state.padwidth/2, 62000-state.padwidth/2);
+				MYCLAMP(state.pady, 32000, 48000);
+				pdeltax = state.padx - oldpadx; // How far did it move?
+				pdeltay = state.pady - oldpady;
+				if (didClick && state.isCaught) state.isCaught=false; // Let it go.
+				if (state.isCaught) state.timesincelasthit=0;
+			} else {
+				// Request a mouse lock when they click while in game:
+				if (didClick) {
+					lock_mouse(true);
+				}
+			}
 		}
 
 		// Moving bricks:
@@ -443,8 +455,8 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 							state.brick[i].curmovex-=state.brick[i].movedist[state.brick[i].curmove];
 					}
 					if (ox!=state.brick[i].x/100 || oy!=state.brick[i].y/100) { // Only redraw it if it actually moved.
-						redraw_rect(framebuffer, ox-1, oy-1, state.brick[i].wid/100+2, state.brick[i].ht/100+2, i);
-						redraw_brick(i, framebuffer); // Draw it now it's moved.
+						redraw_rect(state.gameFramebuffer, ox-1, oy-1, state.brick[i].wid/100+2, state.brick[i].ht/100+2, i);
+						redraw_brick(i, state.gameFramebuffer); // Draw it now it's moved.
 					}
 				}
 			}
@@ -457,7 +469,7 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 				state.brick[i].flashtime -= deltams;
 				if (state.brick[i].flashtime <= 0) {
 					state.brick[i].flashtime = 0;
-					redraw_brick(i, framebuffer);
+					redraw_brick(i, state.gameFramebuffer);
 				}
 			}
 			if (state.brick[i].hits) {
@@ -617,7 +629,7 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 								state.ball[state.balls].x=state.ball[k].x;
 								state.ball[state.balls].y=state.ball[k].y;
 								float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
-								float angle = atan2(state.ball[k].yv, state.ball[k].xv) - 0.5;
+								float angle = atan2(state.ball[k].yv, state.ball[k].xv) + 0.5;
 								state.ball[state.balls].xv=cos(angle)*speed*100;
 								state.ball[state.balls].yv=sin(angle)*speed*100;
 								state.ball[state.balls].active=state.ball[k].active;
@@ -676,244 +688,262 @@ void game_update(uint32_t* framebuffer, float duration, int* keys, int* chars) {
 					if (state.ball[i].x<2000+BALLWID*50) state.ball[i].x=2000+BALLWID*50;
 					if (state.ball[i].x>62000-BALLWID*50) state.ball[i].x=62000-BALLWID*50;
 				}
-			} else
-			for	(int l=1; l<=delta; l++) { // Iterate a few times so the ball won't go straight through the paddle due to low fps.
-				ball[i].x=ox+ball[i].xv*deltams*l/delta/1000;
-				ball[i].y=oy+ball[i].yv*deltams*l/delta/1000;
+			} else {
+				for (int l=1; l<=delta; l++) { // Iterate a few times so the ball won't go straight through the paddle due to low fps.
+					state.ball[i].x=ox+state.ball[i].xv*deltams*l/delta/1000;
+					state.ball[i].y=oy+state.ball[i].yv*deltams*l/delta/1000;
 
-				// Hit paddle (must be going down for the paddle to affect it) and the paddle must NOT be red/killed.
-				if (ball[i].yv>0 &&
-					!state.isKilled &&
-					MYINSIDE(ball[i].x, ball[i].y, padx-padwidth/2-BALLWID*50, pady-500-BALLHT*50, padx+padwidth/2+BALLWID*50, pady+500+BALLHT*50)) {
-					timesincelasthit=0;
-					score+=10*mult*mult;
-					mult=0;
+					// Hit paddle (must be going down for the paddle to affect it) and the paddle must NOT be red/killed.
+					if (state.ball[i].yv>0 &&
+						!state.isKilled &&
+						MYINSIDE(state.ball[i].x, state.ball[i].y,
+							state.padx-state.padwidth/2-BALLWID*50, state.pady-500-BALLHT*50,
+							state.padx+state.padwidth/2+BALLWID*50, state.pady+500+BALLHT*50)) {
+						state.timesincelasthit=0;
+						state.score += 10 * state.mult * state.mult;
+						state.mult=0;
 
-					if (!ball[i].active) {
-						ball[i].xv*=2;
-						ball[i].yv*=2;
-						ball[i].active=5; // it has now hit the paddle
-						// the 5 means it was just caught this frame
-					}
-					// Use isosceles, so that the speed remains the same:
-					angle=270+90*(ball[i].x-padx)/padwidth;
-					// The / 100 gets the velocities into a range that can be squared without an overflow:
-					speed=long(sqrt(SQR(ball[i].xv/100)+SQR(ball[i].yv/100))+.5);
-					ball[i].xv=long(cos(angle/57.67)*speed*100);
-					ball[i].yv=long(sin(angle/57.67)*speed*100);
-					if (havecatch) {caught=true; caughtBall=i;}
-					l=delta; // Don't move the ball any more.
-				}
-
-			int	tx,ty,bx,by,k1,k2;
-			int hits=0;
-			int oxv=ball[i].xv;
-			int oyv=ball[i].yv;
-			int ox=ball[i].x;
-			int oy=ball[i].y;
-			if (ball[i].active==1) // true means it is active, but not caught just this frame
-			for	(int j=0; j<state.bricks; j++) {
-				if (MYINSIDE(ball[i].x,ball[i].y,brick[j].x-BALLWID*50,brick[j].y-BALLHT*50,
-					brick[j].x+brick[j].wid+BALLWID*50,brick[j].y+brick[j].ht+BALLHT*50)) {
-					int k = which_side(ball[i].x, ball[i].y,
-						brick[j].x, brick[j].y,
-						brick[j].x + brick[j].wid, brick[j].y + brick[j].ht);
-					if (hits==0) {
-						tx=brick[j].x;
-						ty=brick[j].y;
-						bx=brick[j].x+brick[j].wid;
-						by=brick[j].y+brick[j].ht;
-						k1=k;
-						hits++;
-					} else {
-						tx=min(brick[j].x,tx);
-						ty=min(brick[j].y,ty);
-						bx=max(brick[j].x+brick[j].wid,bx);
-						by=max(brick[j].y+brick[j].ht,by);
-						hits++;
-						if (hits==2) k2=k;
-					}
-
-					if (ball[i].type!=3) { // Not a laser.
-						// Bounce the ball off moving bricks:
-						int movexv=0;
-						int moveyv=0;
-						l=-1;
-						if (brick[j].moves) { // moving brick
-							l=brick[j].curmove;
-							// movexv/yv is in pixels per sec
-							// ballxv is in 100 pixels per sec
-							// movetime is in milliseconds
-							if (brick[j].movetime[l]>0) { // don't do a div by 0
-								if (brick[j].movedir[l]==1) // up
-									moveyv=-brick[j].movedist[k] * 1000 / brick[j].movetime[l];
-								if (brick[j].movedir[l]==2) // right
-									movexv=brick[j].movedist[k] * 1000 / brick[j].movetime[l];
-								if (brick[j].movedir[l]==3) // down
-									moveyv=brick[j].movedist[k] * 1000 / brick[j].movetime[l];
-								if (brick[j].movedir[l]==4) // left
-									movexv=-brick[j].movedist[k] * 1000 / brick[j].movetime[l];
-							} // if movetime>0
-						} // if moving brick
-						
-						if (k==RIGHT) {ball[i].xv=ABS(ball[i].xv) + 40*movexv; ball[i].x=brick[j].x+brick[j].wid+BALLWID*50 + 2*movexv;}
-						if (k==LEFT) {ball[i].xv=-ABS(ball[i].xv) + 40*movexv; ball[i].x=brick[j].x-BALLWID*50 + 2*movexv;}
-						if (k==BOTTOM) {ball[i].yv=ABS(ball[i].yv) + 40*moveyv; ball[i].y=brick[j].y+brick[j].ht+BALLHT*50 + 2*moveyv;}
-						if (k==TOP) {ball[i].yv=-ABS(ball[i].yv) + 40*moveyv; ball[i].y=brick[j].y-BALLHT*50 + 2*moveyv;}
-						l=delta;
-					} // not a laser
-
-					if (!brick[j].flashtime	&& (brick[j].hits>0 || ball[i].type==4)) { // non-gold brick or you have a purple ball
-						brick[j].hits--;
-						if (brick[j].hits<=0 ||	ball[i].type>=3) { // kill brick (instant kill with superballs)
-							// drop powerup!
-							if (numbricks!=1 && !(rand()%POWERUPCHANCE)) NewPowerup(brick[j].x+brick[j].wid/2,brick[j].y+brick[j].ht/2);
-							if (mult<100 &&	mult+balls>=100	&& soundinit) sndMult100.Play();
-							if (mult<500 &&	mult+balls>=500	&& soundinit) sndMult500.Play();
-							if (mult<1000 && mult+balls>=1000 && soundinit)	sndMult1000.Play();
-							if (mult<1500 && mult+balls>=1500 && soundinit)	sndMult1500.Play();
-							if (mult<2000 && mult+balls>=2000 && soundinit)	sndMult2000.Play();
-							mult+=balls; // bigger mult with more balls
-
-							int	_left,_top,_wid,_ht;
-							_left=brick[j].x/100; _top=brick[j].y/100; _wid=brick[j].wid/100; _ht=brick[j].ht/100;
-							memmove(&brick[j],&brick[j+1],sizeof(_brick)*(bricks-j-1));
-							bricks--; j--;
-							RedrawRect(_left,_top,_wid,_ht);//needredraw=true;
-							if (soundinit) {sndKillBlock.Stop(); sndKillBlock.Play();}
-						} else {
-							// Flash colour:
-							brick[j].flashtime=150;
-							redraw_brick(j);
-							// if (soundinit) {sndTinkBlock.Stop(); sndTinkBlock.Play();} // TODO sound
+						if (!state.ball[i].active) {
+							state.ball[i].xv*=2;
+							state.ball[i].yv*=2;
+							state.ball[i].active=5; // it has now hit the paddle
+							// the 5 means it was just caught this frame
 						}
-						timesincelasthit=0;
-					} else { // It must be a gold brick, or it is a laser
-						// if (soundinit && ball[i].type!=3) {sndTinkBlock.Stop();	sndTinkBlock.Play();} // TODO sound
+						// Use isosceles, so that the speed remains the same:
+						float angle = 270 + 90*(state.ball[i].x - state.padx)/state.padwidth;
+						// The / 100 gets the velocities into a range that can be squared without an overflow:
+						float speed = sqrt(SQR(state.ball[i].xv/100) + SQR(state.ball[i].yv/100)) + .5;
+						state.ball[i].xv = cos(angle/57.67)*speed*100;
+						state.ball[i].yv = sin(angle/57.67)*speed*100;
+						if (state.hasCatch) {state.isCaught=true; state.caughtBall=i;}
+						l=delta; // Don't move the ball any more.
 					}
-				} // if myinside
-			} // j=0 to bricks
-			if (hits==2	&& ball[i].type!=3)	{ // check the bounce, it is weird (unless laser)
-				k = which_side(ball[i].x,ball[i].y,tx,ty,bx,by);
-				if (k==k1 || k==k2)	{ // acceptable?
-					if (k==RIGHT) {ball[i].xv=ABS(oxv); ball[i].yv=oyv;}
-					if (k==LEFT) {ball[i].xv=-ABS(oxv); ball[i].yv=oyv;}
-					if (k==BOTTOM) {ball[i].yv=ABS(oyv); ball[i].xv=oxv;}
-					if (k==TOP)	{ball[i].yv=-ABS(oyv); ball[i].xv=oxv;}
-				}
-				l=delta;
-			}
 
-			if (ball[i].active==5) {
-				ball[i].active=1; // it was just caught this frame
-			}
+					int	tx,ty,bx,by,k1,k2;
+					int hits=0;
+					int oxv=state.ball[i].xv;
+					int oyv=state.ball[i].yv;
+					int ox=state.ball[i].x;
+					int oy=state.ball[i].y;
+					if (state.ball[i].active==1) { // true means it is active, but not caught just this frame
+						for	(int j=0; j<state.bricks; j++) {
+							if (MYINSIDE(state.ball[i].x, state.ball[i].y,
+									state.brick[j].x-BALLWID*50, state.brick[j].y-BALLHT*50,
+									state.brick[j].x+state.brick[j].wid+BALLWID*50, state.brick[j].y+state.brick[j].ht+BALLHT*50)) {
+								int k = which_side(state.ball[i].x, state.ball[i].y,
+									state.brick[j].x, state.brick[j].y,
+									state.brick[j].x + state.brick[j].wid, state.brick[j].y + state.brick[j].ht);
+								if (hits==0) {
+									tx=state.brick[j].x;
+									ty=state.brick[j].y;
+									bx=state.brick[j].x+state.brick[j].wid;
+									by=state.brick[j].y+state.brick[j].ht;
+									k1=k;
+									hits++;
+								} else {
+									tx = mini(state.brick[j].x, tx);
+									ty = mini(state.brick[j].y, ty);
+									bx = maxi(state.brick[j].x+state.brick[j].wid, bx);
+									by = maxi(state.brick[j].y+state.brick[j].ht, by);
+									hits++;
+									if (hits==2) k2=k;
+								}
 
-			// Bounce off the screen border 19,44,620,480 (things must be inside, not on this line).
-			if (ball[i].x<2000+BALLWID*50) {
-				ball[i].x=2000+BALLWID*50; ball[i].xv=-ball[i].xv; l=delta;
-				// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
-			}
-			if (ball[i].x>62000-BALLWID*50)	{
-				ball[i].x=62000-BALLWID*50; ball[i].xv=-ball[i].xv; l=delta;
-				// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
-			}
-			if (ball[i].y<4500+BALLHT*50) {
-				ball[i].y=4500+BALLHT*50; ball[i].yv=-ball[i].yv; l=delta;
-				// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
-			}
+								if (state.ball[i].type!=3) { // Not a laser.
+									// Bounce the ball off moving bricks:
+									int movexv=0;
+									int moveyv=0;
+									l=-1;
+									if (state.brick[j].moves) { // moving brick
+										l=state.brick[j].curmove;
+										// movexv/yv is in pixels per sec
+										// ballxv is in 100 pixels per sec
+										// movetime is in milliseconds
+										if (state.brick[j].movetime[l]>0) { // don't do a div by 0
+											if (state.brick[j].movedir[l]==1) // up
+												moveyv=-state.brick[j].movedist[k] * 1000 / state.brick[j].movetime[l];
+											if (state.brick[j].movedir[l]==2) // right
+												movexv=state.brick[j].movedist[k] * 1000 / state.brick[j].movetime[l];
+											if (state.brick[j].movedir[l]==3) // down
+												moveyv=state.brick[j].movedist[k] * 1000 / state.brick[j].movetime[l];
+											if (state.brick[j].movedir[l]==4) // left
+												movexv=-state.brick[j].movedist[k] * 1000 / state.brick[j].movetime[l];
+										} // if movetime>0
+									} // if moving brick
+									
+									if (k==SIDE_RIGHT) {state.ball[i].xv=ABS(state.ball[i].xv) + 40*movexv; state.ball[i].x=state.brick[j].x+state.brick[j].wid+BALLWID*50 + 2*movexv;}
+									if (k==SIDE_LEFT) {state.ball[i].xv=-ABS(state.ball[i].xv) + 40*movexv; state.ball[i].x=state.brick[j].x-BALLWID*50 + 2*movexv;}
+									if (k==SIDE_BOTTOM) {state.ball[i].yv=ABS(state.ball[i].yv) + 40*moveyv; state.ball[i].y=state.brick[j].y+state.brick[j].ht+BALLHT*50 + 2*moveyv;}
+									if (k==SIDE_TOP) {state.ball[i].yv=-ABS(state.ball[i].yv) + 40*moveyv; state.ball[i].y=state.brick[j].y-BALLHT*50 + 2*moveyv;}
+									l=delta;
+								} // not a laser
 
-			// Saved by the protection:
-			if (state.hasProtection && ball[i].y>48000-BALLHT*50	&& (!caught	|| caughtBall!=i)) {
-				state.hasProtection = false;
-				ball[i].yv=-ABS(ball[i].yv);
-				ball[i].y=48000-BALLHT*50;
-				// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} TODO sound
-				timesincelasthit=0;
-			}
+								if (!state.brick[j].flashtime	&& (state.brick[j].hits>0 || state.ball[i].type==4)) { // non-gold brick or you have a purple ball
+									state.brick[j].hits--;
+									if (state.brick[j].hits<=0 ||	state.ball[i].type>=3) { // kill brick (instant kill with superballs)
+										// drop powerup!
+										if (numbricks!=1 && !(rand()%POWERUPCHANCE)) new_powerup(state.brick[j].x+state.brick[j].wid/2,state.brick[j].y+state.brick[j].ht/2);
+										// TODO sound
+										/*
+										if (state.mult<100 && state.mult+state.balls>=100	&& soundinit) sndMult100.Play();
+										if (state.mult<500 && state.mult+state.balls>=500	&& soundinit) sndMult500.Play();
+										if (state.mult<1000 && state.mult+state.balls>=1000 && soundinit) sndMult1000.Play();
+										if (state.mult<1500 && state.mult+state.balls>=1500 && soundinit) sndMult1500.Play();
+										if (state.mult<2000 && state.mult+state.balls>=2000 && soundinit) sndMult2000.Play();
+										*/
+										state.mult += state.balls; // bigger mult with more balls
 
-			// Lost a ball:
-			if (ball[i].y>48000+BALLHT*50 && (!caught || caughtBall!=i)) {
-				memmove(&ball[i],&ball[i+1],(balls-i-1)*sizeof(_ball));
-				balls--;
-				i--;
-				break;
-			}
-		} // for (l->delta
-	} // for (i->balls
+										int	_left,_top,_wid,_ht;
+										_left=state.brick[j].x/100; _top=state.brick[j].y/100; _wid=state.brick[j].wid/100; _ht=state.brick[j].ht/100;
+										memmove(&state.brick[j], &state.brick[j+1], sizeof(Brick)*(state.bricks-j-1));
+										state.bricks--; j--;
+										redraw_rect(state.gameFramebuffer, _left, _top, _wid, _ht, -1);
+										// if (soundinit) {sndKillBlock.Stop(); sndKillBlock.Play();} // TODO sound.
+									} else {
+										// Flash colour:
+										state.brick[j].flashtime=150;
+										redraw_brick(j, state.gameFramebuffer);
+										// if (soundinit) {sndTinkBlock.Stop(); sndTinkBlock.Play();} // TODO sound
+									}
+									state.timesincelasthit=0;
+								} else { // It must be a gold brick, or it is a laser
+									// if (soundinit && state.ball[i].type!=3) {sndTinkBlock.Stop();	sndTinkBlock.Play();} // TODO sound
+								}
+							} // if myinside
+						} // for (int j=0; j<state.bricks; j++)
+					} // if (state.ball[i].active==1)
 
-		// If it hasnt touched the paddle for 30 seconds, make the balls go laser.
-		j=timesincelasthit;
-		timesincelasthit+=deltams;
-		if (timesincelasthit>30000)	{ // 30 secs
-			for	(int i=0; i<balls; i++) {
-				ball[i].type=3; // Laser.
+					// Check if the bounce is weird (unless laser):
+					if (hits==2	&& state.ball[i].type!=3)	{
+						Side side = which_side(state.ball[i].x, state.ball[i].y, tx, ty, bx, by);
+						if (side==k1 || side==k2) { // Acceptable?
+							if (side==SIDE_RIGHT)  {state.ball[i].xv= ABS(oxv); state.ball[i].yv=oyv;}
+							if (side==SIDE_LEFT)   {state.ball[i].xv=-ABS(oxv); state.ball[i].yv=oyv;}
+							if (side==SIDE_BOTTOM) {state.ball[i].yv= ABS(oyv); state.ball[i].xv=oxv;}
+							if (side==SIDE_TOP)    {state.ball[i].yv=-ABS(oyv); state.ball[i].xv=oxv;}
+						}
+						l=delta;
+					}
+
+					if (state.ball[i].active==5) {
+						state.ball[i].active=1; // it was just caught this frame
+					}
+
+					// Bounce off the screen border 19,44,620,480 (things must be inside, not on this line).
+					if (state.ball[i].x<2000+BALLWID*50) {
+						state.ball[i].x=2000+BALLWID*50; state.ball[i].xv=-state.ball[i].xv; l=delta;
+						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
+					}
+					if (state.ball[i].x>62000-BALLWID*50)	{
+						state.ball[i].x=62000-BALLWID*50; state.ball[i].xv=-state.ball[i].xv; l=delta;
+						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
+					}
+					if (state.ball[i].y<4500+BALLHT*50) {
+						state.ball[i].y=4500+BALLHT*50; state.ball[i].yv=-state.ball[i].yv; l=delta;
+						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
+					}
+
+					// Saved by the protection:
+					if (state.hasProtection && state.ball[i].y>48000-BALLHT*50	&& (!state.isCaught || state.caughtBall!=i)) {
+						state.hasProtection = false;
+						state.ball[i].yv=-ABS(state.ball[i].yv);
+						state.ball[i].y=48000-BALLHT*50;
+						state.timesincelasthit=0;
+						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} TODO sound
+					}
+
+					// Lost a ball:
+					if (state.ball[i].y>48000+BALLHT*50 && (!state.isCaught || state.caughtBall!=i)) {
+						memmove(&state.ball[i], &state.ball[i+1], (state.balls-i-1)*sizeof(Ball));
+						state.balls--;
+						i--;
+						break;
+					}
+				} // for (int l=1; l<=delta; l++)
+			} // else after if (state.isCaught)
+		} // for (int i=0; i<state.balls; i++)
+
+		// If it hasnt touched the paddle for 30 seconds, make the balls go laser so they definitely cannot get stuck.
+		int lasttimesincelasthit = state.timesincelasthit;
+		state.timesincelasthit += deltams;
+		if (state.timesincelasthit>30000) { // 30 secs
+			for	(int i=0; i<state.balls; i++) {
+				state.ball[i].type = 3; // Laser.
 			}
-			timesincelasthit=0;
+			state.timesincelasthit = 0;
 			// if (soundinit) sndCoolBall.Play(); // TODO sound
 		}
 
-		// after 10 seconds and every 2 seconds, reaim the balls so they can't get stuck.
-		if (timesincelasthit>10000 &&
-			timesincelasthit%2000 <	j%2000) {
-			for	(int k=0; k<balls; k++) {
-				float speed = sqrt(SQR(ball[k].xv/100) + SQR(ball[k].yv/100));
-				float angle = atan2(ball[k].yv, ball[k].xv);
-				angle += (rand()%100) - 50;
-				ball[k].xv=long(cos(angle)*speed*100);
-				ball[k].yv=long(sin(angle)*speed*100);
+		// After 10 seconds and every 2 seconds, reaim the balls so they hopefully get unstuck.
+		if (state.timesincelasthit>10000 && state.timesincelasthit%2000 < lasttimesincelasthit%2000) {
+			for	(int k=0; k<state.balls; k++) {
+				float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
+				float angle = atan2(state.ball[k].yv, state.ball[k].xv);
+				angle += randf(-0.5, 0.5);
+				state.ball[k].xv=cos(angle)*speed*100;
+				state.ball[k].yv=sin(angle)*speed*100;
 			}
-		}
+		} // if (timesincelasthit>10000 && timesincelasthit%2000 < j%2000)
 
-		if (balls==0) {
-			if (curballs>0)	{
-				// if (soundinit) sndLoseBall.Play(); // TODO sound.
+		// Have they run out of balls?
+		if (state.balls==0) {
+			if (state.curBalls>0)	{
 				no_powerups();
-				new_ball(); curballs--; // Lost a ball/life.
+				new_ball();
+				state.curBalls--; // Lost a ball/life.
+				// if (soundinit) sndLoseBall.Play(); // TODO sound.
 			} else {
-				// go to high scores now!
-				score+=10*mult*mult;
-				mult=0;
-				if (score>=highscore[HIGHSCORES-1].score) {
-					if (soundinit) sndNewHighscore.Play();
-					whatScreen=SCREEN_TYPENAME;	// made it into the high scores!
-					curnametext[0]=0; curnameoff=0;	// start the name off
-					}
-				else whatScreen=SCREEN_HIGHSCORE;
+				// Game over, go to high scores now!
+				state.score += 10 * state.mult * state.mult;
+				state.mult=0;
+				if (state.score >= state.highscore[HIGHSCORES-1].score) {
+					// if (soundinit) sndNewHighscore.Play(); TODO sound
+					state.whatScreen = SCREEN_TYPENAME;	// Made it into the high scores!
+					state.curnametext[0]=0; state.curnameoff=0;	// Start the name off.
+				} else {
+					state.whatScreen = SCREEN_HIGHSCORE;
+				}
 				load_proper_back();
 			}
-		}
-	}
-/*
-	else
-	if (whatScreen==SCREEN_TITLE) {
-		}
-	else
-	if (whatScreen==SCREEN_HIGHSCORE) {	// high scores
-		}
-	else
-	if (whatScreen==SCREEN_TYPENAME) { // high scores
-	if (!inMenu)
-		for	(i=0;i<256 && keybuffer[i];i++)	{
-		if (isprint(keybuffer[i]) && curnameoff<19)	{
-			if (GetKeyState(KEYCODE_SHIFT)&0x80)
-			curnametext[curnameoff]=shiftup(keybuffer[i]);
-			else	curnametext[curnameoff]=tolower(keybuffer[i]);
-			curnameoff++;
-			curnametext[curnameoff]=0;
-			}
-		if ((keybuffer[i]==KEYCODE_BACKSPACE || KEYCODE_DELETE) && curnameoff>0) {
-			curnameoff--;
-			curnametext[curnameoff]=0;
-			}
-		if (keybuffer[i]==KEYCODE_ENTER || KEYCODE_KP_ENTER) {
-			add_high_score(curnametext,episode[curepisode].name,score,curlevel);
-			save_high_scores();
-			whatScreen=SCREEN_HIGHSCORE;
-			load_proper_back();
-			}
-		} // for i...
+		} // if (balls==0)
+		// end if (state.whatScreen==SCREEN_GAME)
+	} else if (state.whatScreen==SCREEN_TITLE) {
+		// Deliberately empty.
+	} else if (state.whatScreen==SCREEN_HIGHSCORE) {
+		// Deliberately empty.
+	} else if (state.whatScreen==SCREEN_TYPENAME) {
+		if (!state.inMenu) {
+			// Typed characters:
+			for (int i=i; chars[i]; i++) {
+				if (isprint(chars[i]) && state.curnameoff<19)	{
+					state.curnametext[state.curnameoff] = chars[i];
+					state.curnameoff++;
+					state.curnametext[state.curnameoff]=0;
+				}
+			} // chars
+			// Special keys:
+			for (int i=0; keys[i]; i++) {
+				switch (keys[i]) {
+					case KEYCODE_BACKSPACE:
+					case KEYCODE_DELETE:
+						if (state.curnameoff > 0) {
+							state.curnameoff--;
+							state.curnametext[state.curnameoff]=0;
+						}
+						break;
+					case KEYCODE_ENTER:
+					case KEYCODE_KP_ENTER:
+						add_high_score(state.curnametext, state.episode[state.curEpisode].name, state.score, state.curLevel);
+						save_high_scores();
+						state.whatScreen=SCREEN_HIGHSCORE;
+						load_proper_back();
+						break;
+					default:
+						break;
+				}
+			} // keys
+		} // if (!inMenu)
 	} // whatScreen==SCREEN_typename
-	*/
 }
 
 void game_draw(uint32_t* framebuffer) {
@@ -926,16 +956,19 @@ void game_draw(uint32_t* framebuffer) {
 	}
 
 	if (state.whatScreen == SCREEN_GAME) {
-		// TODO think about how draw_game_screen might want to go to another buffer? Only redrawn intermittently, but the dynamic stuff eg ball/powerups/stats is drawn each frame?
-		draw_game_screen(framebuffer);
+		// Draw the level only when necessary to the gameFramebuffer.
+		// Then, each frame, quickly copy the not-often-changing parts of the screen, then overlay eg balls/paddle/etc.
+		draw_game_screen_if_needed(state.gameFramebuffer);
+		memcpy(framebuffer, state.gameFramebuffer, SCREENWIDTH * SCREENHEIGHT * 4);
 
-		// Display stats:
+		// Score:
 		sprintf(text, "Balls:%-3dLevel:%-3dMult:%-5dScore:%d", state.curBalls, state.curLevel, state.mult, state.score);
 		draw_text(framebuffer, text, state.font16, 21, 24);
 
+		// Protection bar:
 		if (state.hasProtection) {
 			uint32_t colour = rgb(204, 153, 0);
-			draw_rect(framebuffer, 20, 480-1, 600, 1, colour); // Protection bar.
+			draw_rect(framebuffer, 20, 480-1, 600, 1, colour);
 		}
 
 		// Powerups:
@@ -970,6 +1003,11 @@ void game_draw(uint32_t* framebuffer) {
 			draw_paddle(framebuffer, x+wid/4+1, y, wid/2+1);
 		} else {
 			draw_paddle(framebuffer, state.padx/100, state.pady/100, state.padwidth/100);
+		}
+
+		// Mouse click reminder:
+		if (!state.inMenu && !is_mouse_locked()) {
+			draw_text(framebuffer, "Click here!", state.font16, 320-11*10/2, 430);
 		}
 	} else if (state.whatScreen==SCREEN_HIGHSCORE) {
 		for	(int i=0; i<HIGHSCORES; i++) {
@@ -1063,7 +1101,7 @@ bool load_level_lvl(char *filename, int level) {
 	FILE* fh = fopen(filename, "rb");
 	if (!fh) { return false; }
 	int32_t fileId = fread_i32(fh);
-	if (fileId!=LVLFILEID && fileId!=LV2FILEID)	{ fclose(fh); return false; }
+	if (fileId!=LVLFILEID && fileId!=LV2FILEID)	{ fclose(fh); printf("LVL: Invalid file id (%x).\n", fileId); return false; }
 	int32_t numberOfLevels = fread_i32(fh);
 	if (level>numberOfLevels || level<=0) { fclose(fh); return false; } // Bad level #.
 
@@ -1075,8 +1113,8 @@ bool load_level_lvl(char *filename, int level) {
 	fread(state.levelname, 100, 1, fh);
 
 	// Load balls:
-	int32_t ballCount = fread_i32(fh);
-	if (ballCount > MAXBALLS) { fclose(fh); return false; }
+	int ballCount = fread_i16(fh);
+	if (ballCount > MAXBALLS) { fclose(fh); printf("LVL: Too many balls (%d).\n", ballCount); return false; }
 	for	(int i=0; i<ballCount; i++) {
 		x=0; fread(&x, 2, 1, fh);
 		y=0; fread(&y, 2, 1, fh);
@@ -1092,8 +1130,8 @@ bool load_level_lvl(char *filename, int level) {
 	}
 
 	// Load bricks:
-	int32_t brickCount = fread_i32(fh);
-	if (brickCount > MAXBRICKS) { fclose(fh); return false; }
+	int brickCount = fread_i16(fh);
+	if (brickCount > MAXBRICKS) { fclose(fh); printf("LVL: Too many bricks (%d).\n", brickCount); return false; }
 	state.bricks=0;
 	for	(int i=0; i<brickCount; i++) {
 		int16_t x = fread_i16(fh);
@@ -1105,7 +1143,7 @@ bool load_level_lvl(char *filename, int level) {
 		int g = fread_u8(fh);
 		int b = fread_u8(fh);
 		unsigned char moves = 0; if	(fileId==LV2FILEID)	{ moves = fread_u8(fh); }
-		if (moves > MAXMOVES) { fclose(fh); return false; }
+		if (moves > MAXMOVES) { fclose(fh); printf("LVL: Too many moves (%d).\n", moves); return false; }
 		for (int k=0; k<moves; k++) { // Load movements.
 			movedir[k] = fread_u8(fh); // 1=up 2=right 3=down 4=left.
 			movedist[k] = fread_i16(fh);
@@ -1205,6 +1243,7 @@ bool load_level_inf(char *filename) {
 					int b = (c & 0xff);
 					state.brick[state.bricks].colour=rgb(r, g, b);
 					state.brick[state.bricks].high=rgb(r+43, g+43, b+43);
+					state.brick[state.bricks].higher=rgb(r+86, g+86, b+86);
 					state.brick[state.bricks].low=rgb(r-43, g-43, b-43);
 					if (moves<0	|| moves>MAXMOVES) { moves=0; }
 					state.brick[state.bricks].moves=moves;
@@ -1330,7 +1369,7 @@ void new_powerup(int x, int y) {
 }
 
 // Get rid of all powerups (lost a ball or start a new episode).
-void no_powerups()  {
+void no_powerups() {
 	state.padwidth=7500;
 	for (int i=0; i<MAXBALLS; i++) {
 		state.ball[i].type=0; 
@@ -1343,7 +1382,7 @@ void no_powerups()  {
 }
 
 // A new ball (doesnt retain old powerups).
-void new_ball()  {
+void new_ball() {
 	state.timesincelasthit=0;
 	if (state.balls >= MAXBALLS) { return; }
 	state.ball[state.balls].x=state.ballStartX;
@@ -1369,12 +1408,17 @@ void load_cur_level() {
 	state.isCaught=false;
 
 	// Try INF before try LVL:
-	char	path[100];
-	sprintf(path, "assets/levels/%s%d.inf", state.episode[state.curEpisode].basename, state.curLevel);
-	if (load_level_inf(path)) { return; } // INF worked :)
+	char infPath[100];
+	sprintf(infPath, "assets/levels/%s%d.inf", state.episode[state.curEpisode].basename, state.curLevel);
+	if (load_level_inf(infPath)) { return; } // INF worked :)
 
-	sprintf(path, "assets/levels/%s.lvl", state.episode[state.curEpisode].basename);
-	load_level_lvl(path, state.curLevel);
+	char lvlPath[100];
+	sprintf(lvlPath, "assets/levels/%s.lvl", state.episode[state.curEpisode].basename);
+	bool lvlSucceeded = load_level_lvl(lvlPath, state.curLevel);
+
+	if (!lvlSucceeded) {
+		printf("Could not load either INF (%s) or LVL (%s).\n", infPath, lvlPath);
+	}
 }
 
 void load_high_scores() {
@@ -1477,21 +1521,6 @@ void drop_catch(bool force) {
 	}
 }
 
-// Gets a character and returns what it should be if the user held shift down.
-char shiftup(char c) {
-	if (isalpha(c)) { return toupper(c); } // Easy one!
-
-	char *intable="`1234567890-=[]\\;',./",
-		*outtable="~!@#$%^&*()_+{}|:\"<>?";
-	int len=strlen(intable);
-	for	(int i=0; i<=len; i++) {
-		if (c==intable[i]) {
-			return outtable[i];
-		}
-	}
-	return c;
-}
-
 // i is the brick index.
 void redraw_brick(int i, uint32_t *framebuffer) {
 	if (state.brick[i].colour == 0xff000000) { return; } // Invisible brick!
@@ -1503,7 +1532,7 @@ void redraw_brick(int i, uint32_t *framebuffer) {
 	uint32_t low = isFlashing ? state.brick[i].colour : state.brick[i].low;
 
 	// Fill the rect.
-	int left = state.brick[i].x/100; // Inclusive.
+	int left = state.brick[i].x/100;
 	int top = state.brick[i].y/100;
 	int width = state.brick[i].wid/100;
 	int height = state.brick[i].ht/100;
@@ -1522,19 +1551,19 @@ void redraw_brick(int i, uint32_t *framebuffer) {
 void redraw_level_name(uint32_t *framebuffer) {
 	if (!state.levelname[0]) { return; } // Make sure the name isn't blank.
 	uint32_t colour = rgb(102, 102, 102);
-	int len = strlen(state.levelname) + 1; // Extra width instead of the rounded ends.
+	int len = strlen(state.levelname); // Extra width instead of the rounded ends.
 	int left = 320 - len * 4;
 	int top = 52;
 	int width = len * 8;
 	draw_rect(framebuffer, left, top, width, 10, colour);
-	// TODO rounded ends:
-	// sprites.Display(314-strlen(levelname)*4,52,388,0,6,10,lpDDSGame);
-	// sprites.Display(320+strlen(levelname)*4,52,394,0,6,10,lpDDSGame);
+	// Rounded ends:
+	draw_subimage(framebuffer, state.sprites, left-6,     52, 388, 0, 6, 10);
+	draw_subimage(framebuffer, state.sprites, left+width, 52, 394, 0, 6, 10);
 	draw_text(framebuffer, state.levelname, state.font8, left, 53);
 }
 
 // Draw the game's background, bricks, level name.
-void draw_game_screen(uint32_t *framebuffer) {
+void draw_game_screen_if_needed(uint32_t *framebuffer) {
 	if (state.needRedraw) {
 		if (state.background && state.background->data) {
 			memcpy(framebuffer, state.background->data, SCREENWIDTH * SCREENHEIGHT * 4);
@@ -1607,6 +1636,7 @@ void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y) {
 	}
 }
 
+// Redraws the background, level name, and bricks - intended for use for the gameFramebuffer.
 void redraw_rect(uint32_t *framebuffer, int left, int top, int wid, int ht, int bricktoskip) {
 	// Background:
 	draw_subimage(framebuffer, state.background, left, top, left, top, wid, ht);

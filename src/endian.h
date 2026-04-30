@@ -1,5 +1,5 @@
 // This handles endian conversions in a cross-platform way.
-// This is needed because the original game was windows intel big endian files.
+// This is needed because the original game was windows intel little endian files.
 
 #pragma once
 

@@ -2,13 +2,26 @@
 help:
 	cat Makefile
 
+# Compile for linux:
+linux: sokol stb
+	cc \
+		-DSOKOL_GLCORE33 \
+		-lX11 -lXi -lXcursor -ldl -lpthread -lm -lGL \
+		-pthread \
+		-O3 \
+		-I sokol \
+		-I stb \
+		src/*.c \
+		-o brickwarrior
+
 # Compile for macOS, just the binary:
 macos: sokol stb
 	cc \
-		-O3 \
+		-DSOKOL_METAL \
 		-x objective-c \
 		-fobjc-arc \
 		-framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore \
+		-O3 \
 		-I sokol \
 		-I stb \
 		src/*.c \
@@ -24,6 +37,10 @@ macos-app: macos
 	cp assets/macos/AppIcon.icns BrickWarrior.app/Contents/Resources
 	# Ad-hoc code signing, no cert needed:
 	codesign --force --deep --sign - BrickWarrior.app
+
+# Compile for windows, all I know is the graphics backend so far:
+win:
+	cc -DSOKOL_D3D11 etc
 
 # Compile the shaders:
 shaders: sokol-tools

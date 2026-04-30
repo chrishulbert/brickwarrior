@@ -58,3 +58,5 @@ typedef enum {
 } Keycode;
 
 int maxi(int a, int b);
+int mini(int a, int b);
+float randf(float min, float max);
