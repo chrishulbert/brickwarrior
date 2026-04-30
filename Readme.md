@@ -2,9 +2,13 @@
 
 ![Screenshot](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot.png)
 
-Brickout clone I wrote in the 90s 👴
+Brickout clone I wrote in high school in the 90s 👴
+
+![Screenshot 2](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot2.png)
 
 Ported to run on modern systems using Sokol.
+
+![Screenshot 3](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot3.png)
 
 ## Building
 
