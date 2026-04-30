@@ -83,6 +83,18 @@ void init(void) {
         }
     };
 
+    // macOS helper to snap the CWD to the Resources folder so files can load.
+    #ifdef __APPLE__
+        CFBundleRef mainBundle = CFBundleGetMainBundle();
+        CFURLRef resourcesURL = CFBundleCopyResourcesDirectoryURL(mainBundle);
+        char path[PATH_MAX];
+        if (CFURLGetFileSystemRepresentation(resourcesURL, true, (UInt8 *)path, PATH_MAX)) {
+            chdir(path); // Change Working Directory to /Contents/Resources
+            // Path is the current folder if run outside of a .app.
+        }
+        CFRelease(resourcesURL);
+    #endif
+
     // Let the game logic have a chance to init:
     game_init();
 }
