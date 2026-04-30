@@ -102,8 +102,6 @@ void init(void) {
             keyEquivalent:@"q"];
         
         NSMenu* app_menu = [[NSMenu alloc] init];
-        [app_menu addItem:hide_menu_item];
-        [app_menu addItem:[NSMenuItem separatorItem]];
         [app_menu addItem:quit_menu_item];
 
         NSMenuItem* app_menu_item = [[NSMenuItem alloc] init];
