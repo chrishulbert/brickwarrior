@@ -1,14 +1,10 @@
 # BrickWarrior
 
-![Screenshot](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot.png)
-
 Brickout clone I wrote in high school in the 90s 👴
-
-![Screenshot 2](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot2.png)
 
 Ported to run on modern systems using Sokol.
 
-![Screenshot 3](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot3.png)
+![Screenshot](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot.png)
 
 ## Building
 
@@ -19,6 +15,8 @@ make macos-app
 make linux
 make win # WIP
 ```
+
+![Screenshot 2](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot2.png)
 
 ## Structure
 
@@ -34,3 +32,5 @@ make win # WIP
     * The game itself shouldn't be too coupled to Sokol besides the parameters it passes to game, as it might be migrated to SDL later.
 * image.c/h
     * This is a wrapper for stb_image for loading PNGs.
+
+![Screenshot 3](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot3.png)
