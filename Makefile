@@ -55,17 +55,17 @@ shaders: sokol-tools
 # Checkout Sokol if needed:
 sokol: sokol/README.md
 sokol/README.md:
-	git clone --depth 1 git@github.com:floooh/sokol.git
+	git clone --depth 1 https://github.com/floooh/sokol.git
 
 # Checkout Sokol tools if needed:
 sokol-tools: sokol-tools-bin/README.md
 sokol-tools-bin/README.md:
-	git clone --depth 1 git@github.com:floooh/sokol-tools-bin.git
+	git clone --depth 1 https://github.com/floooh/sokol-tools-bin.git
 
 # Checkout STB if needed:
 stb: stb/README.md
 stb/README.md:
-	git clone --depth 1 git@github.com:nothings/stb.git
+	git clone --depth 1 https://github.com/nothings/stb.git
 
 # Shortcut to compile then run:
 run: macos
