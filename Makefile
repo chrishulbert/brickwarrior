@@ -5,7 +5,7 @@ help:
 # Compile for linux:
 linux: sokol stb
 	cc \
-		-DSOKOL_GLCORE33 \
+		-DSOKOL_GLCORE \
 		-lX11 -lXi -lXcursor -ldl -lpthread -lm -lGL \
 		-pthread \
 		-O3 \
