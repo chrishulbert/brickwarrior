@@ -3,27 +3,31 @@ help:
 	cat Makefile
 
 # Compile for linux:
-linux: sokol stb
+linux: libs
 	cc \
 		-DSOKOL_GLCORE \
-		-lX11 -lXi -lXcursor -ldl -lpthread -lm -lGL \
+		-lX11 -lXi -lXcursor -ldl -lpthread -lm -lGL -lasound \
 		-pthread \
 		-O3 \
 		-I sokol \
 		-I stb \
+		-I dr_libs \
+		-std=c23 \
 		src/*.c \
 		-o brickwarrior
 
 # Compile for macOS, just the binary:
-macos: sokol stb
+macos: libs
 	cc \
 		-DSOKOL_METAL \
 		-x objective-c \
 		-fobjc-arc \
-		-framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore \
+		-framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore -framework AudioToolbox \
 		-O3 \
 		-I sokol \
 		-I stb \
+		-I dr_libs \
+		-std=c23 \
 		src/*.c \
 		-o brickwarrior
 
@@ -42,8 +46,11 @@ macos-app: macos
 	codesign --force --deep --sign - BrickWarrior.app
 
 # Compile for windows, all I know is the graphics backend so far:
-win:
-	cc -DSOKOL_D3D11 etc
+win: libs
+	cl \
+		-DSOKOL_D3D11 \
+		/std:clatest \
+		etc
 
 # Compile the shaders:
 shaders: sokol-tools
@@ -51,6 +58,9 @@ shaders: sokol-tools
 		--input src/shaders/basic.glsl \
 		--output src/shaders/basic.h \
 		--slang metal_macos:hlsl5:glsl430:wgsl
+
+# Group all the game libs together:
+libs: sokol stb dr_libs
 
 # Checkout Sokol if needed:
 sokol: sokol/README.md
@@ -66,6 +76,11 @@ sokol-tools-bin/README.md:
 stb: stb/README.md
 stb/README.md:
 	git clone --depth 1 https://github.com/nothings/stb.git
+
+# Checkout dr_wav if needed:
+dr_libs: dr_libs/README.md
+dr_libs/README.md:
+	git clone --depth 1 https://github.com/mackron/dr_libs.git
 
 # Shortcut to compile then run:
 run: macos

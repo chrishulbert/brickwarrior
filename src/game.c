@@ -13,6 +13,8 @@
 #include "image.h"
 #include "endian.h"
 #include "helpers.h"
+#include "sound.h"
+#include "mixer.h"
 
 #define	VERSIONNAME		"Version 20"
 #define	HIGHSCORES		20

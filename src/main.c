@@ -4,12 +4,14 @@
 #define SOKOL_IMPL // So the implementation is compiled in.
 #include "sokol_app.h"
 #include "sokol_gfx.h"
+#include "sokol_audio.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
 #include "shaders/basic.h"
 
 #include "main.h"
 #include "game.h"
+#include "mixer.h"
 
 #define QUEUES_LEN 20 // Length of the queue arrays. Actual queueable events are this-1 because it's null terminated.
 
@@ -75,6 +77,17 @@ void init(void) {
         .texture.image = state.framebuffer_image,
     });
 
+    // Audio:
+    saudio_setup(&(saudio_desc){
+        .sample_rate = 22050,
+        .num_channels = 1, // Mono.
+        .stream_cb = mixer_stream_callback,
+        .logger = {
+            .func = slog_func,
+        }
+    });
+
+
     // Define the background color:
     state.pass_action = (sg_pass_action) {
         .colors[0] = {
@@ -108,8 +121,9 @@ void init(void) {
         app_menu_item.submenu = app_menu;
         
         NSMenu* menu_bar = [[NSMenu alloc] init];
-        NSApp.mainMenu = menu_bar;
         [menu_bar addItem:app_menu_item];
+
+        NSApp.mainMenu = menu_bar;
     #endif
 
     // Let the game logic have a chance to init:
@@ -222,6 +236,7 @@ void cleanup(void) {
     free(state.framebuffer);
     state.framebuffer = NULL;
     sg_shutdown();
+    saudio_shutdown();
 }
 
 // Application entry point configuration:
