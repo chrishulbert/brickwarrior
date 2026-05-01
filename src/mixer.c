@@ -1,6 +1,7 @@
 // This is responsible for mixing the sounds into an audio stream.
 // This uses a lockless message passing command queue to pass instructions to the
 // mixer thread.
+// This assumes mono.
 
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -120,10 +121,35 @@ void queue_read() {
     atomic_store_explicit(&commandQueue.readIndex, readIndex, memory_order_release);
 }
 
+// TODO get sound to pre-interpolate to 22050? Or do pitch time maths here?
+
 // Called from the audio thread, needs to be hard realtime.
 void mixer_stream_callback(float* buffer, int num_frames, int num_channels) {
-    const int num_samples = num_frames * num_channels;
-    for (int i=0; i<num_samples; i++) {
-        buffer[i] = 0.0f;
+    for (int i=0; i<num_frames; i++) {
+        float sample = 0;
+        for (int j=0; j<state.voices; j++) {
+            auto voice = &state.voice[j];
+            sample += voice->sound->data[voice->frame];
+            voice->frame++;
+            if (voice->frame >= voice->sound->len) { // Finished.
+                if (j==state.voices-1) { // End of the list.
+                    state.voices--;
+                } else { // Mid-list:
+                    memcpy(&state.voice[j], &state.voice[state.voices-1], sizeof(Voice));
+                    state.voices--;
+                    j--; // Iterate this index again.
+                }
+            }
+        }
+        buffer[i] = sample;
     }
+}
+
+// Externally-called helpers:
+void mixer_play(Sound* sound, int id) {
+    queue_write((Command){
+        .type = COMMAND_PLAY,
+        .id = id,
+        .sound = sound,
+    });
 }

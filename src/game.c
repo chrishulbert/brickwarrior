@@ -102,33 +102,32 @@ typedef enum {
 
 static struct {
 	// // Sound:
-	// CDXSound *Sound;
-	// CDXSoundBuffer *sndKillBlock;
-	// CDXSoundBuffer *sndTinkBlock;
-	// CDXSoundBuffer *sndBounce; // Off edge of screen.
-	// CDXSoundBuffer *sndMult100;
-	// CDXSoundBuffer *sndMult500;
-	// CDXSoundBuffer *sndMult1000;
-	// CDXSoundBuffer *sndMult1500;
-	// CDXSoundBuffer *sndMult2000;
-	// CDXSoundBuffer *sndExtraBall;
-	// CDXSoundBuffer *sndNewHighscore;
-	// CDXSoundBuffer *sndIntro;
-	// CDXSoundBuffer *sndLoseBall;
+	// Sound* sndTinkBlock;
+	// Sound* sndKillBlock;
+	Sound* sndBounce; // Off edge of screen.
+	// Sound* sndMult100;
+	// Sound* sndMult500;
+	// Sound* sndMult1000;
+	// Sound* sndMult1500;
+	// Sound* sndMult2000;
+	// Sound* sndExtraBall;
+	// Sound* sndNewHighscore;
+	// Sound* sndIntro;
+	// Sound* sndLoseBall;
 	// // Powerups:
-	// CDXSoundBuffer *sndBubble;
-	// CDXSoundBuffer *sndCoolBall;
-	// CDXSoundBuffer *sndFast;
-	// CDXSoundBuffer *sndSlow;
-	// CDXSoundBuffer *sndThin;
-	// CDXSoundBuffer *sndWide;
-	// CDXSoundBuffer *sndTripleBall;
-	// CDXSoundBuffer *sndLotsBall;
-	// CDXSoundBuffer *sndUpdown;
-	// CDXSoundBuffer *sndGetKill;
-	// CDXSoundBuffer *sndRecover;
-	// CDXSoundBuffer *sndCatch;
-	// CDXSoundBuffer *sndProtection;
+	// Sound* sndBubble;
+	// Sound* sndCoolBall;
+	// Sound* sndFast;
+	// Sound* sndSlow;
+	// Sound* sndThin;
+	// Sound* sndWide;
+	// Sound* sndTripleBall;
+	// Sound* sndLotsBall;
+	// Sound* sndUpdown;
+	// Sound* sndGetKill;
+	// Sound* sndRecover;
+	// Sound* sndCatch;
+	// Sound* sndProtection;
 
 	bool hasQuit;
 
@@ -236,32 +235,32 @@ void game_init() {
 
 	// Sounds:
 	// TODO use dr_wav header library.
-	// sndKillBlock.Load(Sound,"sounds\\killblok.wav");
-	// sndTinkBlock.Load(Sound,"sounds\\tinkblok.wav");
-	// sndBounce.Load(Sound,"sounds\\bounce.wav");
-	// sndExtraBall.Load(Sound,"sounds\\extrabal.wav");
-	// sndMult100.Load(Sound,"sounds\\mult100.wav");
-	// sndMult500.Load(Sound,"sounds\\mult500.wav");
-	// sndMult1000.Load(Sound,"sounds\\mult1000.wav");
-	// sndMult1500.Load(Sound,"sounds\\mult1500.wav");
-	// sndMult2000.Load(Sound,"sounds\\mult2000.wav");
-	// sndNewHighscore.Load(Sound,"sounds\\newhiscr.wav");
-	// sndIntro.Load(Sound,"sounds\\intro.wav");
-	// sndLoseBall.Load(Sound,"sounds\\loseball.wav");
+	// sndKillBlock.Load(Sound,"assets/sound/killblok.wav");
+	// sndTinkBlock.Load(Sound,"assets/sound/tinkblok.wav");
+	state.sndBounce = sound_load("assets/sound/bounce.wav");
+	// sndExtraBall.Load(Sound,"assets/sound/extrabal.wav");
+	// sndMult100.Load(Sound,"assets/sound/mult100.wav");
+	// sndMult500.Load(Sound,"assets/sound/mult500.wav");
+	// sndMult1000.Load(Sound,"assets/sound/mult1000.wav");
+	// sndMult1500.Load(Sound,"assets/sound/mult1500.wav");
+	// sndMult2000.Load(Sound,"assets/sound/mult2000.wav");
+	// sndNewHighscore.Load(Sound,"assets/sound/newhiscr.wav");
+	// sndIntro.Load(Sound,"assets/sound/intro.wav");
+	// sndLoseBall.Load(Sound,"assets/sound/loseball.wav");
 	// // powerups below
-	// sndBubble.Load(Sound,"sounds\\bubble.wav");
-	// sndCoolBall.Load(Sound,"sounds\\coolball.wav");
-	// sndFast.Load(Sound,"sounds\\fast.wav");
-	// sndSlow.Load(Sound,"sounds\\slow.wav");
-	// sndThin.Load(Sound,"sounds\\thin.wav");
-	// sndWide.Load(Sound,"sounds\\wide.wav");
-	// sndTripleBall.Load(Sound,"sounds\\triple.wav");
-	// sndLotsBall.Load(Sound,"sounds\\lotsball.wav");
-	// sndUpdown.Load(Sound,"sounds\\updown.wav");
-	// sndGetKill.Load(Sound,"sounds\\getkill.wav");
-	// sndRecover.Load(Sound,"sounds\\recover.wav");
-	// sndCatch.Load(Sound,"sounds\\catch.wav");
-	// sndProtection.Load(Sound,"sounds\\protect.wav");
+	// sndBubble.Load(Sound,"assets/sound/bubble.wav");
+	// sndCoolBall.Load(Sound,"assets/sound/coolball.wav");
+	// sndFast.Load(Sound,"assets/sound/fast.wav");
+	// sndSlow.Load(Sound,"assets/sound/slow.wav");
+	// sndThin.Load(Sound,"assets/sound/thin.wav");
+	// sndWide.Load(Sound,"assets/sound/wide.wav");
+	// sndTripleBall.Load(Sound,"assets/sound/triple.wav");
+	// sndLotsBall.Load(Sound,"assets/sound/lotsball.wav");
+	// sndUpdown.Load(Sound,"assets/sound/updown.wav");
+	// sndGetKill.Load(Sound,"assets/sound/getkill.wav");
+	// sndRecover.Load(Sound,"assets/sound/recover.wav");
+	// sndCatch.Load(Sound,"assets/sound/catch.wav");
+	// sndProtection.Load(Sound,"assets/sound/protect.wav");
 
 	load_episodes("assets/levels/episodes.inf");
 	load_high_scores();
@@ -826,15 +825,15 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 					// Bounce off the screen border 19,44,620,480 (things must be inside, not on this line).
 					if (state.ball[i].x<2000+BALLWID*50) {
 						state.ball[i].x=2000+BALLWID*50; state.ball[i].xv=-state.ball[i].xv; l=delta;
-						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
+						mixer_play(state.sndBounce, 0);
 					}
 					if (state.ball[i].x>62000-BALLWID*50)	{
 						state.ball[i].x=62000-BALLWID*50; state.ball[i].xv=-state.ball[i].xv; l=delta;
-						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
+						mixer_play(state.sndBounce, 0);
 					}
 					if (state.ball[i].y<4500+BALLHT*50) {
 						state.ball[i].y=4500+BALLHT*50; state.ball[i].yv=-state.ball[i].yv; l=delta;
-						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} // TODO sound
+						mixer_play(state.sndBounce, 0);
 					}
 
 					// Saved by the protection:
@@ -843,7 +842,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 						state.ball[i].yv=-ABS(state.ball[i].yv);
 						state.ball[i].y=48000-BALLHT*50;
 						state.timesincelasthit=0;
-						// if (soundinit) {sndBounce.Stop(); sndBounce.Play();} TODO sound
+						mixer_play(state.sndBounce, 0);
 					}
 
 					// Lost a ball:
