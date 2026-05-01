@@ -3,6 +3,8 @@
 // mixer thread.
 
 #include <stdatomic.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "mixer.h"
 #include "sound.h"
@@ -62,6 +64,19 @@ bool queue_write(Command cmd) {
     return true;
 }
 
+// This is the playback state - only to be touched by the callback thread:
+#define MAX_VOICES 8
+typedef struct {
+    Sound *sound;
+    int sampleRate; // Played rate, which will be a little different.
+    int frame; // Where it's up to.
+    int id;
+} Voice; // A currently playing sound.
+static struct {
+    Voice voice[MAX_VOICES];
+    int voices;
+} state;
+
 // Consumer (controls the readIndex).
 void queue_read() {
     size_t readIndex = commandQueue.readIndexMirror;
@@ -71,8 +86,34 @@ void queue_read() {
         Command* cmd = &commandQueue.buffer[readIndex];
         readIndex = (readIndex + 1) % QUEUE_SIZE;
         
-        // Internal logic to update audio state
-        // handle_command(cmd);
+        // Apply the command:
+        switch (cmd->type) {
+            case COMMAND_PLAY:
+                if (state.voices < MAX_VOICES) {
+                    state.voice[state.voices].sound = cmd->sound;
+                    state.voice[state.voices].sampleRate = cmd->sound->sampleRate - 500 + (rand()%1000);
+                    state.voice[state.voices].frame = 0;
+                    state.voice[state.voices].id = cmd->id;
+                    state.voices++;
+                }
+
+            case COMMAND_STOP_ONE:
+                for (int i=0; i<state.voices; i++) {
+                    if (state.voice[i].id == cmd->id) {
+                        if (i == state.voices-1) { // This is the last one.
+                            state.voices--;
+                        } else { // This is mid-list, so swap it with the last.
+                            memcpy(&state.voice[i], &state.voice[state.voices-1], sizeof(Voice));
+                            state.voices--;
+                            i--; // Iterate this one again.
+                        }
+                    }
+                }
+
+            case COMMAND_STOP_ALL:
+                state.voices = 0;
+                break;
+        }
     }
 
     // Update tail so the producer knows space has been cleared.
