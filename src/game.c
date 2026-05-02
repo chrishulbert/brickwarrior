@@ -102,6 +102,9 @@ typedef enum {
 
 static struct {
 	// // Sound:
+	Sound* sndMenuOpen;
+	Sound* sndMenuClose;
+	Sound* sndMenuMove;
 	// Sound* sndTinkBlock;
 	// Sound* sndKillBlock;
 	Sound* sndBounce; // Off edge of screen.
@@ -234,7 +237,9 @@ void game_init() {
 	srand(time(NULL));
 
 	// Sounds:
-	// TODO use dr_wav header library.
+	state.sndMenuOpen = sound_load("assets/sound/menuopen.wav");
+	state.sndMenuClose = sound_load("assets/sound/menuclose.wav");
+	state.sndMenuMove = sound_load("assets/sound/menumove.wav");
 	// sndKillBlock.Load(Sound,"assets/sound/killblok.wav");
 	// sndTinkBlock.Load(Sound,"assets/sound/tinkblok.wav");
 	state.sndBounce = sound_load("assets/sound/bounce.wav");
@@ -344,12 +349,14 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 						state.curopt = 2;
 						break;
 				}
+				mixer_play(state.sndMenuClose, 0);
 			} else { // Enter the menu.
 				state.curmenu=MENU_MAIN;
 				state.curopt=0;
 				state.menuopts=4;
 				state.inMenu=true;
 				lock_mouse(false);
+				mixer_play(state.sndMenuOpen, 0);
 			}
 			break;
 		case KEYCODE_ENTER:
@@ -362,12 +369,14 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 			if (state.inMenu) {
 				state.curopt--;
 				if (state.curopt < 0) { state.curopt += state.menuopts; }
+				mixer_play(state.sndMenuMove, 0);
 			}
 			break;
 		case KEYCODE_DOWN:
 			if (state.inMenu) {
 				state.curopt++;
 				if (state.curopt >= state.menuopts) { state.curopt = 0; }
+				mixer_play(state.sndMenuMove, 0);
 			}
 			break;
 		}
@@ -1770,6 +1779,7 @@ void menu_press_enter() {
 			state.inMenu=false;
 		}
 	}
+	mixer_play(state.sndMenuOpen, 0);
 } // menu_press_enter
 
 void get_save_title(int slot, char* title) {

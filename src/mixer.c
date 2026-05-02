@@ -61,7 +61,9 @@ bool queue_write(Command cmd) {
     commandQueue.buffer[writeIndex] = cmd;
     
     // Use 'release' to ensure the buffer write is visible before the head update.
-    atomic_store_explicit(&commandQueue.writeIndex, (writeIndex + 1) % QUEUE_SIZE, memory_order_release);
+    writeIndex = (writeIndex + 1) % QUEUE_SIZE;
+    commandQueue.writeIndexMirror = writeIndex;
+    atomic_store_explicit(&commandQueue.writeIndex, writeIndex, memory_order_release);
     return true;
 }
 
@@ -97,6 +99,7 @@ void queue_read() {
                     state.voice[state.voices].id = cmd->id;
                     state.voices++;
                 }
+                break;
 
             case COMMAND_STOP_ONE:
                 for (int i=0; i<state.voices; i++) {
@@ -110,6 +113,7 @@ void queue_read() {
                         }
                     }
                 }
+                break;
 
             case COMMAND_STOP_ALL:
                 state.voices = 0;
@@ -118,6 +122,7 @@ void queue_read() {
     }
 
     // Update tail so the producer knows space has been cleared.
+    commandQueue.readIndexMirror = readIndex;
     atomic_store_explicit(&commandQueue.readIndex, readIndex, memory_order_release);
 }
 
@@ -125,6 +130,7 @@ void queue_read() {
 
 // Called from the audio thread, needs to be hard realtime.
 void mixer_stream_callback(float* buffer, int num_frames, int num_channels) {
+    queue_read();
     for (int i=0; i<num_frames; i++) {
         float sample = 0;
         for (int j=0; j<state.voices; j++) {
