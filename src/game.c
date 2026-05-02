@@ -101,36 +101,36 @@ typedef enum {
 } Menu;
 
 static struct {
-	// // Sound:
+	// Sound:
 	Sound* sndMenuOpen;
 	Sound* sndMenuClose;
 	Sound* sndMenuMove;
-	// Sound* sndTinkBlock;
-	// Sound* sndKillBlock;
+	Sound* sndTinkBlock;
+	Sound* sndKillBlock;
 	Sound* sndBounce; // Off edge of screen.
-	// Sound* sndMult100;
-	// Sound* sndMult500;
-	// Sound* sndMult1000;
-	// Sound* sndMult1500;
-	// Sound* sndMult2000;
-	// Sound* sndExtraBall;
-	// Sound* sndNewHighscore;
-	// Sound* sndIntro;
-	// Sound* sndLoseBall;
-	// // Powerups:
-	// Sound* sndBubble;
-	// Sound* sndCoolBall;
-	// Sound* sndFast;
-	// Sound* sndSlow;
-	// Sound* sndThin;
-	// Sound* sndWide;
-	// Sound* sndTripleBall;
-	// Sound* sndLotsBall;
-	// Sound* sndUpdown;
-	// Sound* sndGetKill;
-	// Sound* sndRecover;
-	// Sound* sndCatch;
-	// Sound* sndProtection;
+	Sound* sndMult100;
+	Sound* sndMult500;
+	Sound* sndMult1000;
+	Sound* sndMult1500;
+	Sound* sndMult2000;
+	Sound* sndExtraBall;
+	Sound* sndNewHighscore;
+	Sound* sndIntro;
+	Sound* sndLoseBall;
+	// Powerups:
+	Sound* sndBubble;
+	Sound* sndCoolBall;
+	Sound* sndFast;
+	Sound* sndSlow;
+	Sound* sndThin;
+	Sound* sndWide;
+	Sound* sndTripleBall;
+	Sound* sndLotsBall;
+	Sound* sndUpdown;
+	Sound* sndGetKill;
+	Sound* sndRecover;
+	Sound* sndCatch;
+	Sound* sndProtection;
 
 	bool hasQuit;
 
@@ -240,32 +240,31 @@ void game_init() {
 	state.sndMenuOpen = sound_load("assets/sound/menuopen.wav");
 	state.sndMenuClose = sound_load("assets/sound/menuclose.wav");
 	state.sndMenuMove = sound_load("assets/sound/menumove.wav");
-	// sndKillBlock.Load(Sound,"assets/sound/killblok.wav");
-	// sndTinkBlock.Load(Sound,"assets/sound/tinkblok.wav");
+	state.sndKillBlock = sound_load("assets/sound/killblok.wav");
+	state.sndTinkBlock = sound_load("assets/sound/tinkblok.wav");
 	state.sndBounce = sound_load("assets/sound/bounce.wav");
-	// sndExtraBall.Load(Sound,"assets/sound/extrabal.wav");
-	// sndMult100.Load(Sound,"assets/sound/mult100.wav");
-	// sndMult500.Load(Sound,"assets/sound/mult500.wav");
-	// sndMult1000.Load(Sound,"assets/sound/mult1000.wav");
-	// sndMult1500.Load(Sound,"assets/sound/mult1500.wav");
-	// sndMult2000.Load(Sound,"assets/sound/mult2000.wav");
-	// sndNewHighscore.Load(Sound,"assets/sound/newhiscr.wav");
-	// sndIntro.Load(Sound,"assets/sound/intro.wav");
-	// sndLoseBall.Load(Sound,"assets/sound/loseball.wav");
-	// // powerups below
-	// sndBubble.Load(Sound,"assets/sound/bubble.wav");
-	// sndCoolBall.Load(Sound,"assets/sound/coolball.wav");
-	// sndFast.Load(Sound,"assets/sound/fast.wav");
-	// sndSlow.Load(Sound,"assets/sound/slow.wav");
-	// sndThin.Load(Sound,"assets/sound/thin.wav");
-	// sndWide.Load(Sound,"assets/sound/wide.wav");
-	// sndTripleBall.Load(Sound,"assets/sound/triple.wav");
-	// sndLotsBall.Load(Sound,"assets/sound/lotsball.wav");
-	// sndUpdown.Load(Sound,"assets/sound/updown.wav");
-	// sndGetKill.Load(Sound,"assets/sound/getkill.wav");
-	// sndRecover.Load(Sound,"assets/sound/recover.wav");
-	// sndCatch.Load(Sound,"assets/sound/catch.wav");
-	// sndProtection.Load(Sound,"assets/sound/protect.wav");
+	state.sndExtraBall = sound_load("assets/sound/extraball.wav");
+	state.sndMult100 = sound_load("assets/sound/mult100.wav");
+	state.sndMult500 = sound_load("assets/sound/mult500.wav");
+	state.sndMult1000 = sound_load("assets/sound/mult1000.wav");
+	state.sndMult1500 = sound_load("assets/sound/mult1500.wav");
+	state.sndMult2000 = sound_load("assets/sound/mult2000.wav");
+	state.sndNewHighscore = sound_load("assets/sound/newhiscr.wav");
+	state.sndIntro = sound_load("assets/sound/intro.wav");
+	state.sndLoseBall = sound_load("assets/sound/loseball.wav");
+	state.sndBubble = sound_load("assets/sound/bubble.wav");
+	state.sndCoolBall = sound_load("assets/sound/coolball.wav");
+	state.sndFast = sound_load("assets/sound/fast.wav");
+	state.sndSlow = sound_load("assets/sound/slow.wav");
+	state.sndThin = sound_load("assets/sound/thin.wav");
+	state.sndWide = sound_load("assets/sound/wide.wav");
+	state.sndTripleBall = sound_load("assets/sound/triple.wav");
+	state.sndLotsBall = sound_load("assets/sound/lotsball.wav");
+	state.sndUpdown = sound_load("assets/sound/updown.wav");
+	state.sndGetKill = sound_load("assets/sound/getkill.wav");
+	state.sndRecover = sound_load("assets/sound/recover.wav");
+	state.sndCatch = sound_load("assets/sound/catch.wav");
+	state.sndProtection = sound_load("assets/sound/protect.wav");
 
 	load_episodes("assets/levels/episodes.inf");
 	load_high_scores();
@@ -485,7 +484,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 				// Progress to the next level.
 				if (state.balls>=3) {
 					state.curBalls++; // If they have all 3 balls when they finish a level then they get a new ball
-					// sndExtraBall.Play(); // TODO
+					mixer_play(state.sndExtraBall, 0);
 				}
 				state.curLevel++;
 				load_cur_level();
@@ -495,7 +494,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 				state.mult=0;
 				if (state.score > state.highscore[HIGHSCORES-1].score) {
 					// Made it into the high scores!
-					// sndNewHighscore.Play(); // TODO sound
+					mixer_play(state.sndNewHighscore, 0);
 					state.whatScreen = SCREEN_TYPENAME;	
 					state.curnametext[0]=0; state.curnameoff=0;	// Start the name off.
 				} else { // No new high score.
@@ -537,25 +536,25 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 								}
 							}
 						}
-						// if (!state.isKilled) sndCoolBall.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndCoolBall, 0);
 						break;
 					case PWR_PROTECTION:
-						//if (!kill && soundinit)	sndProtection.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndProtection, 0);
 						drop_catch(false);
 						state.hasProtection=true;
 						break;
 					case PWR_CATCH:
-						// if (!kill && soundinit)	sndCatch.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndCatch, 0);
 						state.hasCatch=true;
 						state.isCaught=false;
 						break;
 					case PWR_UPDOWN:
-						// if (!kill && soundinit)	sndUpdown.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndUpdown, 0);
 						drop_catch(false);
 						state.hasUpdown=1;
 						break;
 					case PWR_FAST:
-						// if (!kill && soundinit)	sndFast.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndFast, 0);
 						drop_catch(false);
 						for	(int k=0; k<state.balls; k++) {	// how bodgy can you get?
 							float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
@@ -567,7 +566,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 						}
 						break;
 					case PWR_SLOW:
-						// if (!kill && soundinit)	sndSlow.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndSlow, 0);
 						drop_catch(false);
 						for	(int k=0; k<state.balls; k++) {
 							float speed = sqrt(SQR(state.ball[k].xv/100) + SQR(state.ball[k].yv/100));
@@ -579,7 +578,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 						}
 						break;
 					case PWR_WIDE:
-						// if (!kill && soundinit)	sndWide.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndWide, 0);
 						drop_catch(false);
 						state.padwidth+=2000;	// 10 pixels each side
 						if (state.padwidth>=12000) { // Drop half the paddle if it gets too big.
@@ -598,7 +597,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 						}
 						break;
 					case PWR_THIN:
-						// if (!kill && soundinit)	sndThin.Play(); // TODO sound
+						if (!state.isKilled) mixer_play(state.sndThin, 0);
 						drop_catch(false);
 						if (state.padwidth>6000) {
 							state.padwidth-=2000;
@@ -639,13 +638,16 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 								state.balls++;
 							}
 						} // for k...
-						// if (!kill && soundinit)	{ // TODO sound
-						// 	if (balls<=3) {sndTripleBall.Stop(); sndTripleBall.Play();}
-						// 	else {sndLotsBall.Stop(); sndLotsBall.Play();}
-						// }
+						if (!state.isKilled) {
+							if (state.balls<=3) {
+								mixer_play(state.sndTripleBall, 0);
+							} else {
+								mixer_play(state.sndLotsBall, 0);
+							}
+						}
 						break;
 					case PWR_KILL:
-						// if (soundinit) sndGetKill.Play(); // TODO sound
+						mixer_play(state.sndGetKill, 0);
 						if (state.hasCatch) {
 							drop_catch(true); // Only drop the catch! (phew) (true=force it to drop even if you have a bubble/laser)
 						} else {
@@ -664,7 +666,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 					if (state.isKilled) {
 						// Recovered a dead/red paddle by catching a non-killing powerup.
 						state.isKilled = false;
-						// if (soundinit) sndRecover.Play(); // TODO sound
+						mixer_play(state.sndRecover, 0);
 						state.score += 500000;
 					}
 				}
@@ -785,14 +787,11 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 									if (state.brick[j].hits<=0 ||	state.ball[i].type>=3) { // kill brick (instant kill with superballs)
 										// drop powerup!
 										if (numbricks!=1 && !(rand()%POWERUPCHANCE)) new_powerup(state.brick[j].x+state.brick[j].wid/2,state.brick[j].y+state.brick[j].ht/2);
-										// TODO sound
-										/*
-										if (state.mult<100 && state.mult+state.balls>=100	&& soundinit) sndMult100.Play();
-										if (state.mult<500 && state.mult+state.balls>=500	&& soundinit) sndMult500.Play();
-										if (state.mult<1000 && state.mult+state.balls>=1000 && soundinit) sndMult1000.Play();
-										if (state.mult<1500 && state.mult+state.balls>=1500 && soundinit) sndMult1500.Play();
-										if (state.mult<2000 && state.mult+state.balls>=2000 && soundinit) sndMult2000.Play();
-										*/
+										if (state.mult<100  && state.mult+state.balls>=100)  mixer_play(state.sndMult100, 0);
+										if (state.mult<500  && state.mult+state.balls>=500)  mixer_play(state.sndMult500, 0);
+										if (state.mult<1000 && state.mult+state.balls>=1000) mixer_play(state.sndMult1000, 0);
+										if (state.mult<1500 && state.mult+state.balls>=1500) mixer_play(state.sndMult1500, 0);
+										if (state.mult<2000 && state.mult+state.balls>=2000) mixer_play(state.sndMult2000, 0);
 										state.mult += state.balls; // bigger mult with more balls
 
 										int	_left,_top,_wid,_ht;
@@ -800,16 +799,16 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 										memmove(&state.brick[j], &state.brick[j+1], sizeof(Brick)*(state.bricks-j-1));
 										state.bricks--; j--;
 										redraw_rect(state.gameFramebuffer, _left, _top, _wid, _ht, -1);
-										// if (soundinit) {sndKillBlock.Stop(); sndKillBlock.Play();} // TODO sound.
+										mixer_play(state.sndKillBlock, 0);
 									} else {
 										// Flash colour:
 										state.brick[j].flashtime=150;
 										redraw_brick(j, state.gameFramebuffer);
-										// if (soundinit) {sndTinkBlock.Stop(); sndTinkBlock.Play();} // TODO sound
+										mixer_play(state.sndTinkBlock, 0);
 									}
 									state.timesincelasthit=0;
 								} else { // It must be a gold brick, or it is a laser
-									// if (soundinit && state.ball[i].type!=3) {sndTinkBlock.Stop();	sndTinkBlock.Play();} // TODO sound
+									if (state.ball[i].type != 3) { mixer_play(state.sndTinkBlock, 0); }
 								}
 							} // if myinside
 						} // for (int j=0; j<state.bricks; j++)
@@ -873,7 +872,7 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 				state.ball[i].type = 3; // Laser.
 			}
 			state.timesincelasthit = 0;
-			// if (soundinit) sndCoolBall.Play(); // TODO sound
+			mixer_play(state.sndCoolBall, 0);
 		}
 
 		// After 10 seconds and every 2 seconds, reaim the balls so they hopefully get unstuck.
@@ -893,13 +892,13 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 				no_powerups();
 				new_ball();
 				state.curBalls--; // Lost a ball/life.
-				// if (soundinit) sndLoseBall.Play(); // TODO sound.
+				mixer_play(state.sndLoseBall, 0);
 			} else {
 				// Game over, go to high scores now!
 				state.score += 10 * state.mult * state.mult;
 				state.mult=0;
 				if (state.score >= state.highscore[HIGHSCORES-1].score) {
-					// if (soundinit) sndNewHighscore.Play(); TODO sound
+					mixer_play(state.sndNewHighscore, 0);
 					state.whatScreen = SCREEN_TYPENAME;	// Made it into the high scores!
 					state.curnametext[0]=0; state.curnameoff=0;	// Start the name off.
 				} else {
@@ -1739,7 +1738,7 @@ void menu_press_enter() {
 			state.inMenu=false; state.whatScreen=SCREEN_HIGHSCORE; load_proper_back();
 		} else if (state.curopt==2) {
 			state.inMenu=false; 
-			// sndIntro.Stop(); sndIntro.Play(); TODO sound
+			mixer_play(state.sndIntro, 0);
 			state.whatScreen=SCREEN_ABOUT; load_proper_back();
 		} else if (state.curopt==3) {
 			state.hasQuit=true;
