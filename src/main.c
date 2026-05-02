@@ -79,7 +79,7 @@ void init(void) {
 
     // Audio:
     saudio_setup(&(saudio_desc){
-        .sample_rate = 22050,
+        .sample_rate = SAMPLE_RATE,
         .num_channels = 1, // Mono.
         .stream_cb = mixer_stream_callback,
         .logger = {

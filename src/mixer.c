@@ -71,8 +71,8 @@ bool queue_write(Command cmd) {
 #define MAX_VOICES 8
 typedef struct {
     Sound *sound;
-    int sampleRate; // Played rate, which will be a little different.
-    int frame; // Where it's up to.
+    uint32_t phase; // Upper 16bits = sample index, lower 16 = fractional part. Unsigned because 44100 is too big for signed 16bits.
+    uint32_t step; // Source rate / dest rate, shifted up 16 for fixed point fractions.
     int id;
 } Voice; // A currently playing sound.
 static struct {
@@ -93,9 +93,10 @@ void queue_read() {
         switch (cmd->type) {
             case COMMAND_PLAY:
                 if (state.voices < MAX_VOICES) {
+                    uint32_t destRate = SAMPLE_RATE - 500 + (rand()%1000); // Add a little wiggle room for dynamicity.
+                    state.voice[state.voices].step = (cmd->sound->sampleRate << 16) / destRate;
+                    state.voice[state.voices].phase = 0;
                     state.voice[state.voices].sound = cmd->sound;
-                    state.voice[state.voices].sampleRate = cmd->sound->sampleRate - 500 + (rand()%1000);
-                    state.voice[state.voices].frame = 0;
                     state.voice[state.voices].id = cmd->id;
                     state.voices++;
                 }
@@ -126,8 +127,6 @@ void queue_read() {
     atomic_store_explicit(&commandQueue.readIndex, readIndex, memory_order_release);
 }
 
-// TODO get sound to pre-interpolate to 22050? Or do pitch time maths here?
-
 // Called from the audio thread, needs to be hard realtime.
 void mixer_stream_callback(float* buffer, int num_frames, int num_channels) {
     queue_read();
@@ -135,9 +134,9 @@ void mixer_stream_callback(float* buffer, int num_frames, int num_channels) {
         float sample = 0;
         for (int j=0; j<state.voices; j++) {
             auto voice = &state.voice[j];
-            sample += voice->sound->data[voice->frame];
-            voice->frame++;
-            if (voice->frame >= voice->sound->len) { // Finished.
+            sample += voice->sound->data[voice->phase >> 16];
+            voice->phase += voice->step; // 0.5 eg if it's 11025 audio.
+            if ((voice->phase >> 16) >= voice->sound->len) { // Finished.
                 if (j==state.voices-1) { // End of the list.
                     state.voices--;
                 } else { // Mid-list:
