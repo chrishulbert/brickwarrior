@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <sys/stat.h>
 
 #include "game.h"
 #include "image.h"
@@ -1423,6 +1424,7 @@ void load_cur_level() {
 }
 
 void load_high_scores() {
+	// Fill in some default names:
 	#define	NAMES 18
 	char* name[NAMES] = {
 		"Nice", "Smokey", "Reaper",
@@ -1432,59 +1434,49 @@ void load_high_scores() {
 		"FatMan", "Bubble", "BrickWarrior",
 		"Dinosaur", "PaddleMeister", "Ripper",
 	};
-
-	// int result=RegOpenKeyEx(HKEY_LOCAL_MACHINE,"SOFTWARE\\Red Shift\\BrickWarrior\\High Scores",0,KEY_QUERY_VALUE,&key);
 	for	(int i=0; i<HIGHSCORES; i++) {
-		// Fill in some default names:
 		strcpy(state.highscore[i].name, name[rand() % NAMES]);
 		strcpy(state.highscore[i].episodename, state.episode[rand() % state.episodes].name);
 		state.highscore[i].score = 100-i;
 		state.highscore[i].level = 1;
-
-		// // try to load the name
-		// if (!result) {
-		// 	sprintf(text, "Name%d",i+1);
-		// 	amtdone=100;
-		// 	RegQueryValueEx(key,text,NULL,NULL,(LPBYTE)&highscore[i].name,&amtdone);
-		// 	highscore[i].name[19]=0; // max length 19 chars
-
-		// 	amtdone=100;
-		// 	sprintf(text,"Episode%d",i+1);
-		// 	RegQueryValueEx(key,text,0,0,(LPBYTE)&highscore[i].episodename,&amtdone);
-
-		// 	sprintf(text,"Score%d",i+1);
-		// 	amtdone=sizeof(int);
-		// 	RegQueryValueEx(key,text,0,0,(BYTE *)&highscore[i].score,&amtdone);
-
-		// 	amtdone=sizeof(int);
-		// 	sprintf(text,"Level%d",i+1);
-		// 	RegQueryValueEx(key,text,0,0,(BYTE *)&highscore[i].level,&amtdone);
-		// 	}
 	}
-	// if (!result) RegCloseKey(key);
+
+	auto home = getenv("HOME");
+    if (!home) { return; }
+
+	char path[512];
+	snprintf(path, sizeof(path), "%s/.config/brickwarrior/highscores", home);
+
+    auto file = fopen(path, "rb");
+    if (!file) { return; }
+
+	void *buf = malloc(sizeof(state.highscore));
+	auto count = fread(buf, sizeof(state.highscore), 1, file);
+	if (count==1) { // Read successfully.
+		memcpy(&state.highscore, buf, sizeof(state.highscore));
+	}
+	
+	fclose(file);
 }
 
 void save_high_scores() {
-	// TODO
-	// int i;
-	// char text[100];
-	// HKEY key; // registry
+	auto home = getenv("HOME");
+    if (!home) { return; }
 
-	// RegCreateKeyEx (HKEY_LOCAL_MACHINE,
-	// 			"SOFTWARE\\Red Shift\\BrickWarrior\\High Scores",
-	// 			0,0,0,KEY_ALL_ACCESS,0,&key,0);
+	char path[512];
+	snprintf(path, sizeof(path), "%s/.config", home);
+	mkdir(path, 0700);
 
-	// for	(i=0;i<HIGHSCORES;i++) {
-	// 	sprintf(text,"Name%d",i+1);
-	// 	RegSetValueEx(key,text,0,REG_SZ,(unsigned char *)highscore[i].name,strlen(highscore[i].name)+1);
-	// 	sprintf(text,"Episode%d",i+1);
-	// 	RegSetValueEx(key,text,0,REG_SZ,(unsigned char *)highscore[i].episodename,strlen(highscore[i].episodename)+1);
-	// 	sprintf(text,"Score%d",i+1);
-	// 	RegSetValueEx(key,text,0,REG_DWORD,(unsigned char *)&highscore[i].score,4);
-	// 	sprintf(text,"Level%d",i+1);
-	// 	RegSetValueEx(key,text,0,REG_DWORD,(unsigned char *)&highscore[i].level,4);
-	// 	}
-	// RegCloseKey	(key);
+    snprintf(path, sizeof(path), "%s/.config/brickwarrior", home);
+	mkdir(path, 0700);
+
+	snprintf(path, sizeof(path), "%s/.config/brickwarrior/highscores", home);
+    auto file = fopen(path, "wb");
+    if (!file) { return; }
+
+	fwrite(state.highscore, sizeof(state.highscore), 1, file);
+
+	fclose(file);
 }
 
 void add_high_score(char *name, char *episodename, int score, int level) {
