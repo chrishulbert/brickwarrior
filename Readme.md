@@ -2,6 +2,8 @@
 
 Brickout clone I wrote in high school in the 90s 👴
 
+[Download for macOS](https://github.com/chrishulbert/brickwarrior/releases)
+
 Ported to run on modern systems using Sokol.
 
 ![Screenshot](https://github.com/chrishulbert/brickwarrior/raw/main/readme/screenshot.png)
