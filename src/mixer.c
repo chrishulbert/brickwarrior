@@ -93,7 +93,7 @@ void queue_read() {
         switch (cmd->type) {
             case COMMAND_PLAY:
                 if (state.voices < MAX_VOICES) {
-                    uint32_t destRate = SAMPLE_RATE - 500 + (rand()%1000); // Add a little wiggle room for dynamicity.
+                    uint32_t destRate = SAMPLE_RATE - 1000 + (rand()%2000); // Add a little wiggle room for dynamicity.
                     state.voice[state.voices].step = (cmd->sound->sampleRate << 16) / destRate;
                     state.voice[state.voices].phase = 0;
                     state.voice[state.voices].sound = cmd->sound;

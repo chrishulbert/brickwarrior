@@ -1,5 +1,4 @@
 // TODO refactor non-game-specific stuff eg drawing into their own helpers.
-// TODO tidy up unused assets.
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -17,17 +16,18 @@
 #include "sound.h"
 #include "mixer.h"
 
-#define	VERSIONNAME		"Version 20"
-#define	HIGHSCORES		20
-#define	SAVEGAMES		6
-#define	MAXEPISODES		20
-#define	MAXBRICKS		1000 // a lot!!!
-#define	MAXPOWERUPS		10 // Powerups on screen.
-#define	MAXBALLS		9
-#define	MAXMOVES		10
-#define	BALLWID			12
-#define	BALLHT			12
-#define	POWERUPCHANCE	5 // One in N bricks has a powerup.
+#define	VERSIONNAME		   "Version 20"
+#define	HIGHSCORES		   20
+#define	SAVEGAMES		   6
+#define	SAVEGAME_TITLE_LEN 200
+#define	MAXEPISODES		   20
+#define	MAXBRICKS		   1000 // a lot!!!
+#define	MAXPOWERUPS		   10 // Powerups on screen.
+#define	MAXBALLS		   9
+#define	MAXMOVES		   10
+#define	BALLWID			   12
+#define	BALLHT			   12
+#define	POWERUPCHANCE	   5 // One in N bricks has a powerup.
 
 typedef enum {
 	PWR_BUBBLE=0,
@@ -94,14 +94,18 @@ typedef enum {
 
 typedef enum {
 	MENU_MAIN=0,
-	MENU_PLAYERS, // How many players. TODO remove
 	MENU_EPISODE, // Choose an episode.
 	MENU_GAME, // Play/load/save.
 	MENU_LOAD, // Load game.
 	MENU_SAVE, // Save game.
 } Menu;
 
-static struct {
+typedef struct {
+	char title[SAVEGAME_TITLE_LEN];
+	bool exists;
+} SaveGame;
+
+typedef struct {
 	// Sound:
 	Sound* sndMenuOpen;
 	Sound* sndMenuClose;
@@ -165,7 +169,6 @@ static struct {
 	Brick brick[MAXBRICKS];
 	int bricks;
 
-	int players; // One or two players. TODO remove.
 	char levelname[100];
 
 	// Episodes:
@@ -189,9 +192,16 @@ static struct {
 	Highscore highscore[HIGHSCORES];
 	char curnametext[100];
 	int curnameoff;
-} state;
+
+	// Savegames' metadata:
+	SaveGame savegame[SAVEGAMES];
+} State;
+State state;
 
 // Forward declarations:
+void load_game(int index);
+void load_savegame_metadata();
+void save_game(int index);
 void add_high_score(char *name, char *episodename, int score, int level);
 void new_ball();
 void no_powerups();
@@ -204,7 +214,7 @@ void redraw_rect(uint32_t *framebuffer, int left, int top, int wid, int ht, int 
 void menu_press_enter();
 void load_cur_level();
 void save_high_scores();
-void get_save_title(int slot, char* title);
+void get_save_title(int index, char* title);
 void draw_rect(uint32_t *framebuffer, int x, int y, int width, int height, uint32_t colour);
 void draw_text(uint32_t *framebuffer, char *text, Image* image, int x, int y);
 void load_proper_back();
@@ -301,10 +311,12 @@ void game_update(float duration, int* keys, int* chars, MouseEvent* mouseEvents)
 		case KEYCODE_F2: // Save.
 			if (state.whatScreen==SCREEN_GAME) {
 				state.inMenu=true; state.curmenu=MENU_SAVE; state.curopt=0; state.menuopts=SAVEGAMES;
+				load_savegame_metadata();
 			}
 			break;
 		case KEYCODE_F3: // Load.
 			state.inMenu=true; state.curmenu=MENU_LOAD; state.curopt=0; state.menuopts=SAVEGAMES;
+			load_savegame_metadata();
 			break;
 		case KEYCODE_F4: // Skip level cheat.
 			state.curLevel++;
@@ -1042,11 +1054,6 @@ void game_draw(uint32_t* framebuffer) {
 			draw_text(framebuffer, "About/Help", state.font16blue, 280, 240);
 			draw_text(framebuffer, "Quit", state.font16blue, 280, 260);
 			break;
-		case MENU_PLAYERS:
-			draw_text(framebuffer, "How many players?", state.font16blue, 240, 170);
-			draw_text(framebuffer, "One player", state.font16blue, 280, 200);
-			draw_text(framebuffer, "Two players", state.font16blue, 280, 220);
-			break;
 		case MENU_GAME:
 			draw_text(framebuffer, "What do you want to do?", state.font16blue, 240, 170);
 			draw_text(framebuffer, "Play a new game", state.font16blue, 280, 200);
@@ -1060,14 +1067,14 @@ void game_draw(uint32_t* framebuffer) {
 		case MENU_LOAD:
 			draw_text(framebuffer, "Load game", state.font16blue, 240, 170);
 			for	(int i=0; i<SAVEGAMES; i++) {
-				get_save_title(i+1, text);
+				get_save_title(i, text);
 				draw_text(framebuffer, text, state.font16blue, 280, 200+i*20);
 			}
 			break;
 		case MENU_SAVE:
 			draw_text(framebuffer, "Save game", state.font16blue, 240, 170);
 			for	(int i=0; i<SAVEGAMES; i++) {
-				get_save_title(i+1, text);
+				get_save_title(i, text);
 				draw_text(framebuffer, text, state.font16blue, 280, 200+i*20);
 			}
 			break;
@@ -1735,19 +1742,15 @@ void menu_press_enter() {
 		} else if (state.curopt==3) {
 			state.hasQuit=true;
 		}
-	} else if (state.curmenu==MENU_PLAYERS) { // how many players (not actually used). TODO remove
-		if (state.curopt==0) { state.players=1; }
-		if (state.curopt==1) { state.players=2; }
-		state.menuopts=state.episodes;
-		state.curmenu=MENU_EPISODE;
-		state.curopt=0;
 	} else if (state.curmenu==MENU_GAME) { // game
 		if (state.curopt==0) { // Play.
 			state.curmenu=MENU_EPISODE; state.curopt=0; state.menuopts=state.episodes;
 		} else if (state.curopt==1) { // Load.
 			state.curmenu=MENU_LOAD; state.curopt=0; state.menuopts=SAVEGAMES;
+			load_savegame_metadata();
 		} else if (state.curopt==2 && state.whatScreen==SCREEN_GAME) { // Save.
 			state.curmenu=MENU_SAVE; state.curopt=0; state.menuopts=SAVEGAMES;
+			load_savegame_metadata();
 		}
 	} else if (state.curmenu==MENU_EPISODE) { // episode chooser
 		state.curEpisode=state.curopt; state.curBalls=3; state.curLevel=1; state.mult=0; state.score=0;
@@ -1758,26 +1761,120 @@ void menu_press_enter() {
 		load_proper_back();
 		state.inMenu=false; // play!
 	} else if (state.curmenu==MENU_LOAD) { // load game
-		// if (DoesSaveExist(curopt+1)) { // TODO loading.
-		// 	LoadGame(curopt+1);
-		// 	state.whatScreen=SCREEN_GAME;
-		// 	load_proper_back();
-		// 	state.inMenu=false; // play it!
-		// }
+		if (state.savegame[state.curopt].exists) {
+			load_game(state.curopt);
+			state.whatScreen=SCREEN_GAME;
+			load_proper_back();
+			state.inMenu=false; // Play it!
+		}
 	} else if (state.curmenu==MENU_SAVE) {
 		if (state.whatScreen==SCREEN_GAME) {
-			// SaveGame(curopt+1); TODO save
+			save_game(state.curopt);
 			state.inMenu=false;
 		}
 	}
 	mixer_play(state.sndMenuOpen, 0);
 } // menu_press_enter
 
-void get_save_title(int slot, char* title) {
-	// TODO
-	title[0]='T';
-	title[1]='O';
-	title[2]='D';
-	title[3]='O';
-	title[4]=0;
+void get_save_title(int index, char* title) {
+	if (state.savegame[index].exists) {
+		strcpy(title, state.savegame[index].title);
+	} else {
+		strcpy(title, "Unused savegame");
+	}
+}
+
+void save_game(int index) {
+	auto home = getenv("HOME");
+    if (!home) { return; }
+
+	char path[512];
+	snprintf(path, sizeof(path), "%s/.config", home);
+	mkdir(path, 0700);
+
+    snprintf(path, sizeof(path), "%s/.config/brickwarrior", home);
+	mkdir(path, 0700);
+
+	snprintf(path, sizeof(path), "%s/.config/brickwarrior/save%d", home, index);
+    auto file = fopen(path, "wb");
+    if (!file) { return; }
+
+	char title[SAVEGAME_TITLE_LEN];
+	sprintf(title, "E%dL%d: %s", state.curEpisode + 1, state.curLevel, state.levelname);
+	fwrite(&title, sizeof(title), 1, file);
+
+	fwrite(&state, sizeof(State), 1, file);
+
+	fclose(file);
+}
+
+void load_game(int index) {
+	auto home = getenv("HOME");
+    if (!home) { return; }
+
+	char path[512];
+	snprintf(path, sizeof(path), "%s/.config/brickwarrior/save%d", home, index);
+    auto file = fopen(path, "rb");
+    if (!file) { return; }
+
+	fseek(file, SAVEGAME_TITLE_LEN, SEEK_SET); // Skip the title.
+
+	State saveState;
+	auto count = fread(&saveState, sizeof(State), 1, file);
+	if (count == 1) { // Read ok.
+		memcpy(&state.powerup, saveState.powerup, sizeof(state.powerup));
+		state.powerups = saveState.powerups;
+		state.hasUpdown = saveState.hasUpdown;
+		state.isKilled = saveState.isKilled;
+		state.hasProtection = saveState.hasProtection;
+		state.hasCatch = saveState.hasCatch;
+		state.isCaught = saveState.isCaught;
+		state.caughtBall = saveState.caughtBall;
+		state.padx = saveState.padx;
+		state.pady = saveState.pady;
+		state.padwidth = saveState.padwidth;
+		memcpy(&state.ball, &saveState.ball, sizeof(state.ball));
+		state.balls = saveState.balls;
+		memcpy(&state.brick, &saveState.brick, sizeof(state.brick));
+		state.bricks = saveState.bricks;
+		memcpy(&state.levelname, saveState.levelname, sizeof(state.levelname));
+		state.curEpisode = saveState.curEpisode;
+		state.curLevel = saveState.curLevel;
+		state.curBalls = saveState.curBalls;
+		state.ballStartX = saveState.ballStartX;
+		state.ballStartY = saveState.ballStartY;
+		state.ballStartXV = saveState.ballStartXV;
+		state.ballStartYV = saveState.ballStartYV;
+		state.ballStartActive = saveState.ballStartActive;
+		state.mult = saveState.mult;
+		state.score = saveState.score;
+
+		state.needRedraw=true; // must redraw the game now
+		state.timesincelasthit=0;
+	}
+
+	fclose(file);
+}
+
+// Load the title and 'exists' for all savegames.
+void load_savegame_metadata() {
+	memset(state.savegame, 0, sizeof(state.savegame));
+
+	auto home = getenv("HOME");
+    if (!home) { return; }
+
+	for (int i=0; i<SAVEGAMES; i++) {
+		char path[512];
+		snprintf(path, sizeof(path), "%s/.config/brickwarrior/save%d", home, i);
+		auto file = fopen(path, "rb");
+		if (!file) { continue; }
+
+		char title[SAVEGAME_TITLE_LEN];
+		auto count = fread(&title, sizeof(title), 1, file);
+		if (count == 1) { // Read ok.
+			memcpy(state.savegame[i].title, title, sizeof(title));
+			state.savegame[i].exists = true;
+		}
+		fclose(file);
+	}
 }
